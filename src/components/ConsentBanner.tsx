@@ -9,7 +9,7 @@ const ConsentBanner = () => {
 
   useEffect(() => {
     const hasConsented = localStorage.getItem('pae-cookie-consent');
-    if (hasConsented !== 'accepted') {
+    if (hasConsented !== 'accepted' && hasConsented !== 'dismissed') {
       setShowBanner(true);
     }
   }, []);
@@ -21,7 +21,12 @@ const ConsentBanner = () => {
   };
 
   const handleDecline = () => {
-    localStorage.setItem('pae-cookie-consent', 'declined');
+    localStorage.setItem('pae-cookie-consent', 'dismissed');
+    setShowBanner(false);
+  };
+
+  const handleClose = () => {
+    localStorage.setItem('pae-cookie-consent', 'dismissed');
     setShowBanner(false);
   };
 
@@ -81,7 +86,7 @@ const ConsentBanner = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowBanner(false)}
+                onClick={handleClose}
                 className="p-1"
               >
                 <X className="w-4 h-4" />
