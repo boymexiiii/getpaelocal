@@ -47,7 +47,6 @@ import Contact from '@/pages/Contact';
 import ApiDocs from '@/pages/ApiDocs';
 import Status from '@/pages/Status';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import ConsentBanner from '@/components/ConsentBanner';
 import AccountingSettings from '@/pages/AccountingSettings';
 import Remittance from '@/pages/Remittance';
 import AdminLogin from '@/pages/AdminLogin';
@@ -72,7 +71,6 @@ function App() {
         <AuthProvider>
           <BrowserRouter>
             <Toaster />
-            <ConsentBanner />
             <Routes>
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/" element={<Index />} />
