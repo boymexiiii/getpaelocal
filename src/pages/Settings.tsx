@@ -36,6 +36,12 @@ const Settings = () => {
     },
     {
       icon: CreditCard,
+      title: 'Accounting',
+      description: 'View and export your wallet and transaction history',
+      action: () => navigate('/settings/accounting')
+    },
+    {
+      icon: CreditCard,
       title: 'Payment Methods',
       description: 'Manage your payment methods',
       action: () => navigate('/payment-methods')

@@ -48,6 +48,8 @@ import ApiDocs from '@/pages/ApiDocs';
 import Status from '@/pages/Status';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ConsentBanner from '@/components/ConsentBanner';
+import AccountingSettings from '@/pages/AccountingSettings';
+import Remittance from '@/pages/Remittance';
 
 // Initialize Sentry
 initSentry();
@@ -81,6 +83,7 @@ function App() {
               <Route path="/invest" element={<ProtectedRoute><Invest /></ProtectedRoute>} />
               <Route path="/kyc" element={<ProtectedRoute><KYC /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/settings/accounting" element={<ProtectedRoute><AccountingSettings /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
               <Route path="/qr-payment" element={<ProtectedRoute><QRPayment /></ProtectedRoute>} />
               <Route path="/qr-payment-confirm" element={<ProtectedRoute><QRPaymentConfirm /></ProtectedRoute>} />
@@ -103,6 +106,7 @@ function App() {
               <Route path="/api-docs" element={<ApiDocs />} />
               <Route path="/status" element={<Status />} />
               <Route path="/gift-cards" element={<ProtectedRoute><GiftCards /></ProtectedRoute>} />
+              <Route path="/remittance" element={<ProtectedRoute><Remittance /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
