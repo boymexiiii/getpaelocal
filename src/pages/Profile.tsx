@@ -18,6 +18,7 @@ interface Profile {
   state: string;
   kyc_level: number;
   is_verified: boolean;
+  username?: string;
 }
 
 const Profile = () => {
@@ -27,12 +28,20 @@ const Profile = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    first_name: string;
+    last_name: string;
+    phone: string;
+    date_of_birth: string;
+    state: string;
+    username?: string;
+  }>({
     first_name: '',
     last_name: '',
     phone: '',
     date_of_birth: '',
-    state: ''
+    state: '',
+    username: ''
   });
 
   useEffect(() => {
@@ -58,13 +67,14 @@ const Profile = () => {
         variant: "destructive"
       });
     } else {
-      setProfile(data);
+      setProfile(data as Profile);
       setFormData({
         first_name: data.first_name || '',
         last_name: data.last_name || '',
         phone: data.phone || '',
         date_of_birth: data.date_of_birth || '',
-        state: data.state || ''
+        state: data.state || '',
+        username: data.username || ''
       });
     }
     setLoading(false);
@@ -73,7 +83,21 @@ const Profile = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-
+    if (!formData.username || formData.username.length < 3 || /\s/.test(formData.username)) {
+      toast({ title: "Invalid Username", description: "Username must be at least 3 characters and contain no spaces", variant: "destructive" });
+      return;
+    }
+    // Check uniqueness
+    const { data: existing, error: checkError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', formData.username)
+      .neq('id', user.id)
+      .single();
+    if (existing) {
+      toast({ title: "Username Taken", description: "This username is already in use.", variant: "destructive" });
+      return;
+    }
     const { error } = await supabase
       .from('profiles')
       .update(formData)
@@ -186,6 +210,17 @@ const Profile = () => {
                   />
                 </div>
 
+                <div>
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    required
+                    minLength={3}
+                  />
+                </div>
+
                 <div className="flex gap-2">
                   <Button type="submit">Save Changes</Button>
                   <Button type="button" variant="outline" onClick={() => setEditing(false)}>
@@ -237,6 +272,11 @@ const Profile = () => {
                     <p className="font-medium">Level {profile?.kyc_level}</p>
                     <p className="text-sm text-green-600">{profile?.is_verified ? 'Verified' : 'Not verified'}</p>
                   </div>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-600">Username</p>
+                  <p className="font-medium">{profile?.username || 'Not set'}</p>
                 </div>
 
                 <Button onClick={() => setEditing(true)}>Edit Profile</Button>

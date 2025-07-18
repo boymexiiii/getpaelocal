@@ -67,20 +67,17 @@ export const useNigeriaBanking = () => {
 
     setLoading(true);
     try {
-      console.log('Initiating Monnify transfer:', transferData);
-      
-      const { data, error } = await supabase.functions.invoke('monnify-transfer', {
+      // Use the simulated Nigeria bank transfer function
+      const { data, error } = await supabase.functions.invoke('nigeria-bank-transfer', {
         body: {
-          bankCode: transferData.bank_code,
-          accountNumber: transferData.account_number,
-          accountName: transferData.account_name,
+          bank_code: transferData.bank_code,
+          account_number: transferData.account_number,
+          account_name: transferData.account_name,
           amount: transferData.amount,
           narration: transferData.narration,
-          userId: user.id
+          user_id: user.id
         }
       });
-
-      console.log('Monnify transfer response:', { data, error });
 
       if (error) {
         const errorMessage = error.message || 'Transfer failed. Please try again.';
@@ -108,7 +105,7 @@ export const useNigeriaBanking = () => {
         return { success: false, error: errorMessage };
       }
     } catch (error) {
-      console.error('Monnify transfer error:', error);
+      console.error('Nigeria bank transfer error:', error);
       const errorMessage = 'Transfer failed. Please try again.';
       toast({
         title: "Transfer Failed",
@@ -201,6 +198,10 @@ export const useNigeriaBanking = () => {
         return { success: false, error: error.message };
       }
 
+      // Flatten the data if needed (data.data.account_name)
+      if (data && data.data) {
+        return { success: true, data: { ...data.data } };
+      }
       return { success: true, data };
     } catch (error) {
       return { success: false, error: 'Account verification failed' };

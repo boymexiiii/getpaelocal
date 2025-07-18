@@ -33,46 +33,39 @@ export const useBVNVerification = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('mono-bvn-verify', {
-        body: {
-          bvn: bvn.trim(),
-          user_id: user.id
-        }
+      // --- SUPABASE EDGE FUNCTION BVN VERIFICATION ---
+      const { data, error } = await supabase.functions.invoke('bvn-verify', {
+        body: { bvn: bvn.trim() }
       });
-
-      if (error) {
-        console.error('BVN verification error:', error);
+      if (error || !data || data.status !== 'success') {
         toast({
           title: "Verification Failed",
-          description: error.message || "Failed to verify BVN. Please try again.",
+          description: (data && data.message) || error?.message || "Failed to verify BVN. Please try again.",
           variant: "destructive"
         });
-        return { success: false, verified: false, error: error.message };
+        return { success: false, verified: false, error: (data && data.message) || error?.message };
       }
-
-      if (data?.success && data?.verified) {
-        setVerificationData(data.data);
-        
-        // Auto-populate form fields from BVN data
-        const bvnData = data.data;
-        toast({
-          title: "BVN Verified Successfully",
-          description: `Welcome ${bvnData.first_name} ${bvnData.last_name}! Your details have been pre-filled.`,
-        });
-        
-        return { 
-          success: true, 
-          verified: true, 
-          data: {
-            ...bvnData,
-            // Format date properly for form input
-            date_of_birth: bvnData.date_of_birth ? new Date(bvnData.date_of_birth).toISOString().split('T')[0] : ''
-          }
-        };
-      }
-
-      return { success: false, verified: false, error: data?.error || 'Verification failed' };
-
+      // Map Flutterwave response to expected format
+      const bvnData = {
+        first_name: data.data.first_name,
+        last_name: data.data.last_name,
+        date_of_birth: data.data.date_of_birth,
+        phone: data.data.phone_number,
+        verification_status: 'verified',
+      };
+      setVerificationData(bvnData);
+      toast({
+        title: "BVN Verified Successfully",
+        description: `Welcome ${bvnData.first_name} ${bvnData.last_name}! Your details have been pre-filled.`,
+      });
+      return {
+        success: true,
+        verified: true,
+        data: {
+          ...bvnData,
+          date_of_birth: bvnData.date_of_birth ? new Date(bvnData.date_of_birth).toISOString().split('T')[0] : ''
+        }
+      };
     } catch (error) {
       console.error('Unexpected error during BVN verification:', error);
       const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';

@@ -19,22 +19,34 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { recipientEmail, amount, description, userId } = await req.json()
+    const { recipientIdentifier, amount, description, userId } = await req.json()
 
-    console.log('Send money request:', { recipientEmail, amount, description, userId })
-
-    // Find recipient by email in auth.users table
-    const { data: authData, error: authError } = await supabase.auth.admin.listUsers()
-    
-    if (authError) {
-      console.error('Auth query error:', authError)
+    // Enforce minimum transfer amount
+    if (typeof amount !== 'number' || amount < 100) {
       return new Response(
-        JSON.stringify({ error: 'Error finding recipient' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        JSON.stringify({ error: 'Minimum transfer amount is ₦100' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
 
-    const recipient = authData.users.find(user => user.email === recipientEmail)
+    console.log('Send money request:', { recipientIdentifier, amount, description, userId })
+
+    // Try to find recipient by email in auth.users
+    const { data: authData, error: authError } = await supabase.auth.admin.listUsers()
+    let recipient = authData.users.find(user => user.email === recipientIdentifier)
+
+    // If not found by email, try by username in profiles
+    if (!recipient) {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', recipientIdentifier)
+        .single()
+      if (profileData && profileData.id) {
+        recipient = { id: profileData.id, email: recipientIdentifier }
+      }
+    }
+
     if (!recipient) {
       return new Response(
         JSON.stringify({ error: 'Recipient not found' }),
@@ -108,7 +120,7 @@ serve(async (req) => {
         user_id: recipient.id,
         transaction_type: 'deposit',
         amount,
-        description: `Received from ${recipientEmail}`,
+        description: `Received from ${recipientIdentifier}`,
         status: 'completed',
         reference: `REC-${Date.now()}`
       })
@@ -140,7 +152,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Send money error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: error.message || error.toString() }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }

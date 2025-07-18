@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   Gift,
+  Plus,
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,7 +42,35 @@ const Navigation = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const navItems = [
+  // Determine if we are on the /admin route or if admin code is entered
+  const adminCodeEntered = typeof window !== 'undefined' && sessionStorage.getItem('admin_authenticated') === 'true';
+  const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+
+  // Sophisticated admin sidebar sections
+  const adminSidebarSections = [
+    {
+      label: 'Core',
+      items: [
+        { to: '/admin/users', icon: User, label: 'Users' },
+        { to: '/admin/wallets', icon: CreditCard, label: 'Wallets' },
+        { to: '/admin/transactions', icon: CreditCard, label: 'Transactions' },
+        { to: '/admin/kyc', icon: Shield, label: 'KYC' },
+        { to: '/admin/analytics', icon: Landmark, label: 'Analytics' },
+      ]
+    },
+    {
+      label: 'Platform',
+      items: [
+        { to: '/admin/staff', icon: User, label: 'Staff' },
+        { to: '/admin/support', icon: User, label: 'Support' },
+        { to: '/admin/system', icon: Landmark, label: 'System Tools' },
+      ]
+    },
+  ];
+
+  const navItems = (isAdminRoute && (isAdmin || adminCodeEntered))
+    ? adminSidebarSections
+    : [
     {
       to: "/dashboard",
       icon: LayoutDashboard,
@@ -77,11 +106,12 @@ const Navigation = () => {
       icon: Shield,
       label: "KYC Verification",
     },
-    {
+        // Only include Admin Panel if user is admin and isAdmin is true
+        ...(isAdmin === true ? [{
       to: "/admin",
       icon: Shield,
       label: "Admin Panel",
-    },
+        }] : []),
     {
       to: "/nigeria-banking",
       icon: Landmark,
@@ -134,6 +164,64 @@ const Navigation = () => {
     return 'U';
   };
 
+  // Render admin sidebar if on /admin and adminCodeEntered or isAdmin
+  if (isAdminRoute && (isAdmin || adminCodeEntered)) {
+    return (
+      <nav className="bg-white border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col shadow-sm z-50 w-64">
+        <div className="p-6 border-b border-gray-100">
+          <NavLink to="/admin" className="flex items-center space-x-2 text-xl font-bold">
+            <img 
+              src="/lovable-uploads/61394b0e-fa0e-4b6f-a9fe-e79413ec7cfa.png" 
+              alt="Pae Logo" 
+              className="w-8 h-8"
+            />
+            <span className="bg-gradient-to-r from-purple-600 to-teal-600 bg-clip-text text-transparent">Admin</span>
+          </NavLink>
+        </div>
+        <div className="flex-1 px-4 py-6 overflow-y-auto">
+          {adminSidebarSections.map(section => (
+            <div key={section.label} className="mb-6">
+              <div className="text-xs font-semibold text-gray-400 uppercase mb-2">{section.label}</div>
+              <ul className="space-y-2">
+                {section.items.map(item => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      className={({ isActive }) =>
+                        `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
+                          isActive 
+                            ? 'bg-purple-50 text-purple-700 border-r-2 border-purple-600' 
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }`
+                      }
+                    >
+                      <item.icon className="w-5 h-5" />
+                      <span className="font-medium">{item.label}</span>
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        {/* Admin Logout Button */}
+        <div className="p-4 border-t border-gray-200 mt-auto">
+          <Button
+            variant="outline"
+            className="w-full flex items-center justify-start text-red-600 hover:text-white hover:bg-red-600"
+            onClick={async () => {
+              sessionStorage.removeItem('admin_authenticated');
+              await handleSignOut();
+            }}
+          >
+            <LogOut className="w-5 h-5 mr-2" />
+            Logout
+          </Button>
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <>
       {/* Mobile Menu Toggle Button */}
@@ -178,15 +266,7 @@ const Navigation = () => {
         {/* Navigation Menu */}
         <div className="flex-1 px-4 py-6">
           <ul className="space-y-2">
-            {navItems
-              .filter(item => {
-                // Hide admin panel from non-admin users
-                if (item.to === '/admin') {
-                  return isAdmin;
-                }
-                return true;
-              })
-              .map((item) => (
+            {navItems.map((item) => (
               <li key={item.to}>
                 <NavLink
                   to={item.to}

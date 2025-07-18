@@ -19,7 +19,7 @@ const SendMoneyForm: React.FC<SendMoneyFormProps> = ({ onSuccess }) => {
   const { toast } = useToast();
   const { performTransactionWithLimitCheck, getAvailableLimit, canAfford } = useWalletWithLimits();
   
-  const [recipientEmail, setRecipientEmail] = useState('');
+  const [recipientIdentifier, setRecipientIdentifier] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ const SendMoneyForm: React.FC<SendMoneyFormProps> = ({ onSuccess }) => {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!recipientEmail || !amount) {
+    if (!recipientIdentifier || !amount) {
       toast({
         title: "Missing Information",
         description: "Please fill in recipient email and amount",
@@ -40,10 +40,10 @@ const SendMoneyForm: React.FC<SendMoneyFormProps> = ({ onSuccess }) => {
 
     const amountValue = parseFloat(amount);
     
-    if (amountValue < 10) {
+    if (amountValue < 100) {
       toast({
         title: "Invalid Amount",
-        description: "Minimum transfer amount is ₦10",
+        description: "Minimum transfer amount is ₦100",
         variant: "destructive"
       });
       return;
@@ -86,17 +86,17 @@ const SendMoneyForm: React.FC<SendMoneyFormProps> = ({ onSuccess }) => {
         amount: amountValue,
         type: 'send',
         description: description || 'Money transfer',
-        recipientEmail
+        recipientIdentifier
       });
 
       if (result.success) {
         toast({
           title: "Transfer Successful",
-          description: `Successfully sent ₦${amountValue.toLocaleString()} to ${recipientEmail}`,
+          description: `Successfully sent ₦${amountValue.toLocaleString()} to ${recipientIdentifier}`,
         });
 
         // Reset form
-        setRecipientEmail('');
+        setRecipientIdentifier('');
         setAmount('');
         setDescription('');
         setRequiresOTP(false);
@@ -135,15 +135,15 @@ const SendMoneyForm: React.FC<SendMoneyFormProps> = ({ onSuccess }) => {
       <CardContent>
         <form onSubmit={handleSend} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="recipientEmail">Recipient Email</Label>
+            <Label htmlFor="recipientEmail">Recipient (Email or Username)</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 id="recipientEmail"
-                type="email"
-                placeholder="Enter recipient's email address"
-                value={recipientEmail}
-                onChange={(e) => setRecipientEmail(e.target.value)}
+                type="text"
+                placeholder="Enter recipient's email or username"
+                value={recipientIdentifier}
+                onChange={e => setRecipientIdentifier(e.target.value)}
                 className="pl-10"
                 required
               />
@@ -161,7 +161,7 @@ const SendMoneyForm: React.FC<SendMoneyFormProps> = ({ onSuccess }) => {
                 className="pl-8"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                min="10"
+                min="100"
                 step="10"
                 required
               />

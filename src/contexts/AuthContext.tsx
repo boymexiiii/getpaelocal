@@ -9,6 +9,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   role: string | null;
+  isAdminRole: (role: string | null) => boolean;
   signUp: (email: string, password: string, userData: any) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -68,6 +69,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Helper to check for admin roles
+  const isAdminRole = (role: string | null) => {
+    return ['admin', 'superadmin', 'support', 'compliance'].includes(role || '');
+  };
 
   useEffect(() => {
     // After setting user, fetch role from profiles
@@ -221,6 +227,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     session,
     loading,
     role,
+    isAdminRole,
     signUp,
     signIn,
     signOut,

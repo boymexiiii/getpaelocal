@@ -17,6 +17,7 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,13 +45,17 @@ const Register = () => {
       alert("Passwords don't match");
       return;
     }
-
+    if (!username || username.length < 3 || /\s/.test(username)) {
+      alert("Username must be at least 3 characters and contain no spaces");
+      return;
+    }
     setIsLoading(true);
 
     try {
       const userData = {
         first_name: firstName,
-        last_name: lastName
+        last_name: lastName,
+        username: username
       };
 
       const { error } = await signUp(email, password, userData);
@@ -128,6 +133,20 @@ const Register = () => {
                     className="border-purple-200 focus:border-purple-500"
                   />
                 </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Choose a username"
+                  required
+                  minLength={3}
+                  className="border-purple-200 focus:border-purple-500"
+                />
               </div>
               
               <div className="space-y-2">

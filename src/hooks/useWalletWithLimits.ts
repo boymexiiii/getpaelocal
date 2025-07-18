@@ -11,7 +11,7 @@ interface TransactionRequest {
   amount: number;
   type: 'send' | 'bill_payment' | 'spend';
   description?: string;
-  recipientEmail?: string;
+  recipientIdentifier?: string;
   billType?: string;
   accountNumber?: string;
 }
@@ -59,11 +59,11 @@ export const useWalletWithLimits = () => {
       let result;
       switch (request.type) {
         case 'send':
-          if (!request.recipientEmail) {
-            return { success: false, error: 'Recipient email required' };
+          if (!request.recipientIdentifier) {
+            return { success: false, error: 'Recipient identifier required' };
           }
           result = await wallet.sendMoney(
-            request.recipientEmail,
+            request.recipientIdentifier,
             request.amount,
             request.description || 'Money transfer'
           );
@@ -106,7 +106,7 @@ export const useWalletWithLimits = () => {
           transactionType: request.type,
           amount: request.amount,
           currency: '₦',
-          recipient: request.recipientEmail,
+          recipient: request.recipientIdentifier,
           transactionId: result.transactionId || 'unknown',
           timestamp: new Date().toLocaleString(),
           status: 'success' as const

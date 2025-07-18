@@ -86,7 +86,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Request money error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: error.message || error.toString() }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }

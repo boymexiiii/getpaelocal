@@ -50,9 +50,19 @@ serve(async (req) => {
       .single()
 
     if (walletError || !wallet) {
+      console.error('Wallet not found:', walletError)
       throw new Error('Wallet not found')
     }
 
+    // Check if transaction already completed (idempotency)
+    const { data: existingTx } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('reference', data.data.tx_ref)
+      .eq('status', 'completed')
+      .single()
+
+    if (!existingTx) {
     // Update wallet balance
     await supabase
       .from('wallets')
@@ -64,6 +74,9 @@ serve(async (req) => {
       .from('transactions')
       .update({ status: 'completed' })
       .eq('reference', data.data.tx_ref)
+    } else {
+      console.log('Transaction already completed for reference:', data.data.tx_ref)
+    }
 
     return new Response(
       JSON.stringify({ success: true, amount }),

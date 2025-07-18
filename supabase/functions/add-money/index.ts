@@ -52,7 +52,7 @@ serve(async (req) => {
       .from('transactions')
       .insert({
         user_id: userId,
-        transaction_type: 'deposit',
+        transaction_type: 'wallet_funded',
         amount,
         description: `Wallet funding via ${paymentMethod}`,
         status: paymentStatus,

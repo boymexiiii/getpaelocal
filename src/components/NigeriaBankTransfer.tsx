@@ -77,6 +77,13 @@ const NigeriaBankTransfer = () => {
         narration: ''
       });
       setVerifiedAccount(null);
+    } else {
+      // Show the actual error message from the Edge Function
+      toast({
+        title: "Transfer Failed",
+        description: result.error || "Failed to send money",
+        variant: "destructive"
+      });
     }
   };
 

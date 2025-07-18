@@ -77,7 +77,17 @@ const RequestMoneyForm: React.FC<RequestMoneyFormProps> = ({ onSuccess }) => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Try to show the actual error message from the response
+        let errorMsg = error.message;
+        if (errorMsg && errorMsg.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(errorMsg);
+            errorMsg = parsed.error || errorMsg;
+          } catch {}
+        }
+        throw new Error(errorMsg || 'Failed to send money request');
+      }
 
       toast({
         title: "Request Sent",
@@ -94,7 +104,7 @@ const RequestMoneyForm: React.FC<RequestMoneyFormProps> = ({ onSuccess }) => {
       console.error('Request money error:', error);
       toast({
         title: "Request Failed",
-        description: error.message || "Failed to send money request",
+        description: error.message || (error?.error ?? "Failed to send money request"),
         variant: "destructive"
       });
     } finally {
@@ -103,14 +113,14 @@ const RequestMoneyForm: React.FC<RequestMoneyFormProps> = ({ onSuccess }) => {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+    <Card className="w-full max-w-lg mx-auto sm:rounded-lg sm:shadow-md p-2 sm:p-4 md:p-6">
+      <CardHeader className="px-2 py-4 sm:px-4 sm:py-6">
+        <CardTitle className="flex items-center gap-2 text-lg sm:text-xl md:text-2xl">
           <HandCoins className="w-5 h-5" />
           Request Money
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-2 py-4 sm:px-4 sm:py-6">
         <form onSubmit={handleRequest} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="fromEmail">Request From (Email)</Label>
@@ -161,18 +171,18 @@ const RequestMoneyForm: React.FC<RequestMoneyFormProps> = ({ onSuccess }) => {
             />
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="bg-gray-50 p-4 rounded-lg mb-2 sm:mb-4">
             <h4 className="font-medium mb-2">Request Summary</h4>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between">
                 <span>Amount:</span>
                 <span>₦{amount ? parseFloat(amount).toLocaleString() : '0.00'}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between">
                 <span>From:</span>
                 <span>{fromEmail || 'Enter email'}</span>
               </div>
-              <div className="flex justify-between font-medium border-t pt-2">
+              <div className="flex flex-col sm:flex-row sm:justify-between font-medium border-t pt-2">
                 <span>You will receive:</span>
                 <span>₦{amount ? parseFloat(amount).toLocaleString() : '0.00'}</span>
               </div>

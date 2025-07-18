@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Search, Filter, Eye, AlertCircle, Download } from 'lucide-react';
 import { Transaction } from '@/hooks/useAdminData';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AdminTransactionsTabProps {
   transactions: Transaction[];
@@ -21,6 +22,8 @@ const AdminTransactionsTab: React.FC<AdminTransactionsTabProps> = ({ transaction
   const [typeFilter, setTypeFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [auditTrail, setAuditTrail] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -106,6 +109,18 @@ const AdminTransactionsTab: React.FC<AdminTransactionsTabProps> = ({ transaction
   const totalAmount = filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0);
   const completedTransactions = filteredTransactions.filter(tx => tx.status === 'completed');
   const failedTransactions = filteredTransactions.filter(tx => tx.status === 'failed');
+
+  const fetchAuditTrail = async (transactionId: string) => {
+    setAuditLoading(true);
+    const { data, error } = await supabase.from('audit_logs').select('*').eq('record_id', transactionId).order('created_at', { ascending: false });
+    setAuditTrail(data || []);
+    setAuditLoading(false);
+  };
+
+  const handleRetryTransaction = async (transaction: Transaction) => {
+    // Placeholder: implement actual retry logic as needed
+    alert(`Retrying transaction ${transaction.id}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -239,7 +254,7 @@ const AdminTransactionsTab: React.FC<AdminTransactionsTabProps> = ({ transaction
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => setSelectedTransaction(transaction)}
+                          onClick={() => { setSelectedTransaction(transaction); fetchAuditTrail(transaction.id); }}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -248,50 +263,39 @@ const AdminTransactionsTab: React.FC<AdminTransactionsTabProps> = ({ transaction
                         <DialogHeader>
                           <DialogTitle>Transaction Details</DialogTitle>
                         </DialogHeader>
-                        {selectedTransaction && (
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="text-sm font-medium">Transaction ID</label>
-                                <div className="text-sm text-gray-600">{selectedTransaction.id}</div>
+                        {/* Transaction details here */}
+                        <div className="mt-2">
+                          <p><b>ID:</b> {selectedTransaction?.id}</p>
+                          <p><b>Amount:</b> ₦{selectedTransaction?.amount.toLocaleString()}</p>
+                          <p><b>Type:</b> {selectedTransaction?.transaction_type}</p>
+                          <p><b>Status:</b> {selectedTransaction?.status}</p>
+                          <p><b>User ID:</b> {selectedTransaction?.user_id}</p>
+                          <p><b>Created At:</b> {selectedTransaction && new Date(selectedTransaction.created_at).toLocaleString()}</p>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium">Amount</label>
-                                <div className="text-sm text-gray-600">₦{selectedTransaction.amount.toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium">Type</label>
-                                <div className="text-sm text-gray-600">{selectedTransaction.transaction_type}</div>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium">Status</label>
-                                <Badge className={getStatusColor(selectedTransaction.status)}>
-                                  {selectedTransaction.status}
-                                </Badge>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium">User ID</label>
-                                <div className="text-sm text-gray-600">{selectedTransaction.user_id}</div>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium">Created At</label>
-                                <div className="text-sm text-gray-600">
-                                  {new Date(selectedTransaction.created_at).toLocaleString()}
-                                </div>
-                              </div>
-                            </div>
-                            <div>
-                              <label className="text-sm font-medium">Risk Assessment</label>
-                              <div className={`text-sm px-2 py-1 rounded mt-1 inline-block ${
-                                riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                                riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-green-100 text-green-800'
-                              }`}>
-                                {riskLevel.toUpperCase()} RISK
-                              </div>
-                            </div>
-                          </div>
+                        {selectedTransaction?.status === 'failed' && (
+                          <Button className="mt-4" onClick={() => handleRetryTransaction(selectedTransaction)}>
+                            Retry Transaction
+                          </Button>
                         )}
+                        <div className="mt-6">
+                          <h3 className="font-bold mb-2">Audit Trail</h3>
+                          {auditLoading ? (
+                            <div>Loading audit trail...</div>
+                          ) : auditTrail.length === 0 ? (
+                            <div>No audit logs for this transaction.</div>
+                          ) : (
+                            <ul className="space-y-2 max-h-48 overflow-y-auto">
+                              {auditTrail.map(log => (
+                                <li key={log.id} className="border rounded p-2">
+                                  <div className="text-xs text-gray-500">{new Date(log.created_at).toLocaleString()}</div>
+                                  <div><b>Action:</b> {log.action}</div>
+                                  <div><b>Old Data:</b> <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(log.old_data, null, 2)}</pre></div>
+                                  <div><b>New Data:</b> <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(log.new_data, null, 2)}</pre></div>
+                                </li>
+                              ))}
+                            </ul>
+                        )}
+                        </div>
                       </DialogContent>
                     </Dialog>
                   </div>
