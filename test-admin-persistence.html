@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Authentication Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Admin Authentication Persistence Test</h1>
+    
+    <div class="test-section">
+        <h3>Test localStorage vs sessionStorage</h3>
+        <button onclick="setLocalStorage()">Set localStorage</button>
+        <button onclick="setSessionStorage()">Set sessionStorage</button>
+        <button onclick="checkStorage()">Check Storage</button>
+        <button onclick="clearStorage()">Clear All Storage</button>
+        <button onclick="reloadPage()">Reload Page</button>
+    </div>
+    
+    <div class="test-section">
+        <h3>Results:</h3>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function setLocalStorage() {
+            localStorage.setItem('admin_authenticated', 'true');
+            localStorage.setItem('admin_email', 'test@example.com');
+            updateResults('localStorage set successfully');
+        }
+        
+        function setSessionStorage() {
+            sessionStorage.setItem('admin_authenticated', 'true');
+            sessionStorage.setItem('admin_email', 'test@example.com');
+            updateResults('sessionStorage set successfully');
+        }
+        
+        function checkStorage() {
+            const localAuth = localStorage.getItem('admin_authenticated');
+            const localEmail = localStorage.getItem('admin_email');
+            const sessionAuth = sessionStorage.getItem('admin_authenticated');
+            const sessionEmail = sessionStorage.getItem('admin_email');
+            
+            let result = '<h4>Current Storage State:</h4>';
+            result += `<p><strong>localStorage:</strong> admin_authenticated=${localAuth}, admin_email=${localEmail}</p>`;
+            result += `<p><strong>sessionStorage:</strong> admin_authenticated=${sessionAuth}, admin_email=${sessionEmail}</p>`;
+            
+            updateResults(result);
+        }
+        
+        function clearStorage() {
+            localStorage.removeItem('admin_authenticated');
+            localStorage.removeItem('admin_email');
+            sessionStorage.removeItem('admin_authenticated');
+            sessionStorage.removeItem('admin_email');
+            updateResults('All storage cleared');
+        }
+        
+        function reloadPage() {
+            location.reload();
+        }
+        
+        function updateResults(message) {
+            document.getElementById('results').innerHTML = message;
+        }
+        
+        // Check storage on page load
+        window.onload = function() {
+            checkStorage();
+        };
+    </script>
+</body>
+</html> 
