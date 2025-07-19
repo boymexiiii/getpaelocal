@@ -48,6 +48,15 @@ import Status from '@/pages/Status';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AccountingSettings from '@/pages/AccountingSettings';
 import Remittance from '@/pages/Remittance';
+import AdminDashboard from '@/pages/admin/AdminDashboard';
+import UsersAdminPage from '@/pages/admin/Users';
+import TransactionsAdminPage from '@/pages/admin/Transactions';
+import BillsAdminPage from '@/pages/admin/Bills';
+import KYCAdminPage from '@/pages/admin/KYC';
+import BankTransfersAdminPage from '@/pages/admin/BankTransfers';
+import NotificationsAdminPage from '@/pages/admin/Notifications';
+import SettingsAdminPage from '@/pages/admin/Settings';
+import AuditLogsAdminPage from '@/pages/admin/AuditLogs';
 
 // Initialize Sentry
 initSentry();
@@ -103,6 +112,15 @@ function App() {
               <Route path="/status" element={<Status />} />
               <Route path="/gift-cards" element={<ProtectedRoute><GiftCards /></ProtectedRoute>} />
               <Route path="/remittance" element={<ProtectedRoute><Remittance /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+              <Route path="/admin/users" element={<ProtectedRoute><UsersAdminPage /></ProtectedRoute>} />
+              <Route path="/admin/transactions" element={<ProtectedRoute><TransactionsAdminPage /></ProtectedRoute>} />
+              <Route path="/admin/bills" element={<ProtectedRoute><BillsAdminPage /></ProtectedRoute>} />
+              <Route path="/admin/kyc" element={<ProtectedRoute><KYCAdminPage /></ProtectedRoute>} />
+              <Route path="/admin/bank-transfers" element={<ProtectedRoute><BankTransfersAdminPage /></ProtectedRoute>} />
+              <Route path="/admin/notifications" element={<ProtectedRoute><NotificationsAdminPage /></ProtectedRoute>} />
+              <Route path="/admin/settings" element={<ProtectedRoute><SettingsAdminPage /></ProtectedRoute>} />
+              <Route path="/admin/audit-logs" element={<ProtectedRoute><AuditLogsAdminPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

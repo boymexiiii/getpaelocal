@@ -86,31 +86,56 @@ CREATE POLICY "Users can update their own investments" ON public.investments FOR
 DROP POLICY IF EXISTS "Users can insert their own investments" ON public.investments;
 CREATE POLICY "Users can insert their own investments" ON public.investments FOR INSERT WITH CHECK (auth.uid() = user_id);
 
--- Create function to handle new user registration
+-- Create table for logging signup errors
+CREATE TABLE IF NOT EXISTS public.user_signup_errors (
+  id serial PRIMARY KEY,
+  user_id uuid,
+  error_message text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Patch the function to handle missing metadata and log errors
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = ''
 AS $$
 BEGIN
-  -- Insert profile record
-  INSERT INTO public.profiles (id, first_name, last_name, phone)
-  VALUES (
-    NEW.id,
-    NEW.raw_user_meta_data ->> 'first_name',
-    NEW.raw_user_meta_data ->> 'last_name',
-    NEW.raw_user_meta_data ->> 'phone'
-  );
-  
+  -- Insert profile record, handle missing metadata gracefully
+  BEGIN
+    INSERT INTO public.profiles (id, first_name, last_name, phone)
+    VALUES (
+      NEW.id,
+      COALESCE(NEW.raw_user_meta_data ->> 'first_name', ''),
+      COALESCE(NEW.raw_user_meta_data ->> 'last_name', ''),
+      COALESCE(NEW.raw_user_meta_data ->> 'phone', NULL)
+    );
+  EXCEPTION WHEN OTHERS THEN
+    INSERT INTO public.user_signup_errors (user_id, error_message)
+    VALUES (NEW.id, 'Failed to insert profile: ' || SQLERRM);
+    RETURN NEW;
+  END;
   -- Create default NGN wallet
-  INSERT INTO public.wallets (user_id, balance, currency)
-  VALUES (NEW.id, 0.00, 'NGN');
-  
+  BEGIN
+    INSERT INTO public.wallets (user_id, balance, currency)
+    VALUES (NEW.id, 0.00, 'NGN');
+  EXCEPTION WHEN OTHERS THEN
+    INSERT INTO public.user_signup_errors (user_id, error_message)
+    VALUES (NEW.id, 'Failed to create wallet: ' || SQLERRM);
+    RETURN NEW;
+  END;
   RETURN NEW;
 END;
 $$;
 
 -- Create trigger for new user registration
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created'
+  ) THEN
+    CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+  END IF;
+END $$;

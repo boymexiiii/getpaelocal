@@ -178,6 +178,8 @@ serve(async (req) => {
 
     // Process transfer using selected provider
     let transferResult;
+    let transferSuccess = false;
+    let transferReference = reference;
     
     if (provider === 'paystack') {
       // Initialize Paystack transfer with recipient code
@@ -200,6 +202,8 @@ serve(async (req) => {
       if (!transferResult.status) {
         throw new Error(`Transfer failed: ${transferResult.message}`)
       }
+      transferSuccess = true;
+      // Optionally, you can use transferResult.data.reference if Paystack returns it
     } else {
       // Process Flutterwave transfer
       const transferResponse = await fetch('https://api.flutterwave.com/v3/transfers', {
@@ -224,6 +228,16 @@ serve(async (req) => {
       if (transferResult.status !== 'success') {
         throw new Error(`Transfer failed: ${transferResult.message}`)
       }
+      transferSuccess = true;
+      // Optionally, you can use transferResult.data.id or transferResult.data.reference
+      if (transferResult.data && transferResult.data.reference) {
+        transferReference = transferResult.data.reference;
+      }
+    }
+
+    // Only debit wallet and create transaction if transferSuccess is true
+    if (!transferSuccess) {
+      throw new Error('Transfer was not successful, aborting wallet debit and transaction creation.');
     }
 
     // Update wallet balance
@@ -246,7 +260,7 @@ serve(async (req) => {
         currency: 'NGN',
         description: `Bank transfer to ${accountName} (${account_number}) - ${narration}`,
         status: 'processing',
-        reference
+        reference: transferReference
       })
       .select()
       .single()

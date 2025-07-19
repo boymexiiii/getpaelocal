@@ -77,6 +77,8 @@ export const useAdminData = () => {
   // Move page state here
   const [page, setPage] = useState(1);
   const pageSize = 100;
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   const fetchAdminData = async () => {
     try {
@@ -261,6 +263,26 @@ export const useAdminData = () => {
 
   useEffect(() => {
     fetchAdminData();
+    // Fetch notifications
+    const fetchNotifications = async () => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (!error) setNotifications(data || []);
+    };
+    fetchNotifications();
+    // Fetch audit logs
+    const fetchAuditLogs = async () => {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (!error) setAuditLogs(data || []);
+    };
+    fetchAuditLogs();
   }, []);
 
   return {
@@ -271,7 +293,9 @@ export const useAdminData = () => {
     loading,
     fetchAdminData,
     page,
-    setPage
+    setPage,
+    notifications,
+    auditLogs
   };
 };
 
