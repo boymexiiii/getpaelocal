@@ -60,67 +60,65 @@ serve(async (req) => {
       throw new Error('Insufficient balance for this bill payment')
     }
 
-    // Get VTU credentials
-    const vtuApiKey = Deno.env.get('VTU_API_KEY')
-    const vtuSecretKey = Deno.env.get('VTU_SECRET_KEY')
-
-    if (!vtuApiKey || !vtuSecretKey) {
-      throw new Error('VTU API credentials not configured')
+    // Get VTUPass credentials
+    const vtupassApiKey = Deno.env.get('VTUPASS_API_KEY') || 'e692505419d5e965b02609f88a808de2';
+    if (!vtupassApiKey) {
+      throw new Error('VTUPass API key not configured');
     }
 
     // Generate unique request ID
-    const requestId = `VTU-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const requestId = `VTUPASS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    let endpoint = ''
-    let payload: any = {
+    let vtupassEndpoint = '';
+    let vtupassPayload: any = {
       request_id: requestId,
       serviceID: serviceId,
-      amount: amount
-    }
+      amount: amount,
+    };
 
     // Set endpoint and payload based on bill type
     switch (billType) {
       case 'airtime':
-        endpoint = 'https://vtu.ng/wp-json/api/v1/airtime'
-        payload.phone = phone
-        break
+        vtupassEndpoint = 'https://vtupass.com/api/pay';
+        vtupassPayload.phone = phone;
+        break;
       case 'data':
-        endpoint = 'https://vtu.ng/wp-json/api/v1/data'
-        payload.phone = phone
-        payload.plan = dataPlan
-        break
+        vtupassEndpoint = 'https://vtupass.com/api/pay';
+        vtupassPayload.phone = phone;
+        vtupassPayload.data_plan = dataPlan || 'default';
+        break;
       case 'electricity':
-        endpoint = 'https://vtu.ng/wp-json/api/v1/electricity'
-        payload.billersCode = meterNumber
-        break
+        vtupassEndpoint = 'https://vtupass.com/api/pay';
+        vtupassPayload.meter_number = meterNumber;
+        break;
       default:
-        throw new Error('Invalid bill type')
+        throw new Error('Invalid bill type');
     }
 
-    // Make VTU API request
-    const vtuResponse = await fetch(endpoint, {
+    // Make VTUPass API request
+    const vtupassResponse = await fetch(vtupassEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Token ${vtuApiKey}`,
         'Content-Type': 'application/json',
+        'api-key': vtupassApiKey,
       },
-      body: JSON.stringify(payload)
-    })
+      body: JSON.stringify(vtupassPayload)
+    });
 
-    const vtuData = await vtuResponse.json()
+    const vtupassData = await vtupassResponse.json();
 
-    if (!vtuResponse.ok || vtuData.code !== '000') {
-      throw new Error(vtuData.message || 'Bill payment failed')
+    if (!vtupassResponse.ok || vtupassData.status !== 'success') {
+      throw new Error(vtupassData.message || 'Bill payment failed');
     }
 
     // Update wallet balance
     const { error: updateError } = await supabaseClient
       .from('wallets')
       .update({ balance: wallet.balance - amount })
-      .eq('id', wallet.id)
+      .eq('id', wallet.id);
 
     if (updateError) {
-      throw new Error('Failed to update wallet balance')
+      throw new Error('Failed to update wallet balance');
     }
 
     // Create transaction record
@@ -137,11 +135,11 @@ serve(async (req) => {
         recipient_id: null
       })
       .select()
-      .single()
+      .single();
 
     if (transactionError) {
-      console.error('Error creating transaction record:', transactionError)
-      throw new Error('Failed to create transaction record')
+      console.error('Error creating transaction record:', transactionError);
+      throw new Error('Failed to create transaction record');
     }
 
     return new Response(
@@ -149,14 +147,14 @@ serve(async (req) => {
         success: true,
         message: `${billType.toUpperCase()} payment of ₦${amount.toLocaleString()} completed successfully`,
         data: {
-          requestId,
+          requestId: vtupassData.request_id || requestId,
+          vtupassReference: vtupassData.request_id || requestId,
           amount,
           billType,
           serviceId,
           phone: phone || null,
           meterNumber: meterNumber || null,
           transactionId: transaction.id,
-          vtuReference: vtuData.data?.reference || requestId,
           timestamp: new Date().toISOString()
         }
       }),
@@ -164,7 +162,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       },
-    )
+    );
 
   } catch (error) {
     console.error('VTU bill payment error:', error)

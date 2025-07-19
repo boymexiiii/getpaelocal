@@ -26,7 +26,6 @@ import ResetPassword from '@/pages/ResetPassword';
 import EmailVerification from '@/pages/EmailVerification';
 import NigeriaBanking from '@/pages/NigeriaBanking';
 import NotFound from '@/pages/NotFound';
-import Admin from '@/pages/Admin';
 import UserAnalytics from '@/pages/UserAnalytics';
 import { Toaster } from '@/components/ui/toaster';
 import { EnhancedErrorBoundary } from '@/components/EnhancedErrorBoundary';
@@ -49,15 +48,6 @@ import Status from '@/pages/Status';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AccountingSettings from '@/pages/AccountingSettings';
 import Remittance from '@/pages/Remittance';
-import AdminLogin from '@/pages/AdminLogin';
-import UsersAdminPage from '@/pages/admin/Users';
-import WalletsAdminPage from '@/pages/admin/Wallets';
-import TransactionsAdminPage from '@/pages/admin/Transactions';
-import StaffAdminPage from '@/pages/admin/Staff';
-import KYCAdminPage from '@/pages/admin/KYC';
-import AnalyticsAdminPage from '@/pages/admin/Analytics';
-import SupportAdminPage from '@/pages/admin/Support';
-import SystemAdminPage from '@/pages/admin/System';
 
 // Initialize Sentry
 initSentry();
@@ -72,7 +62,6 @@ function App() {
           <BrowserRouter>
             <Toaster />
             <Routes>
-              <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -97,16 +86,6 @@ function App() {
               <Route path="/qr-payment-confirm" element={<ProtectedRoute><QRPaymentConfirm /></ProtectedRoute>} />
               <Route path="/security-settings" element={<ProtectedRoute><Security /></ProtectedRoute>} />
               <Route path="/nigeria-banking" element={<ProtectedRoute><NigeriaBanking /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
-              <Route path="/admin/users" element={<ProtectedRoute><UsersAdminPage /></ProtectedRoute>} />
-              <Route path="/admin/wallets" element={<ProtectedRoute><WalletsAdminPage /></ProtectedRoute>} />
-              <Route path="/admin/transactions" element={<ProtectedRoute><TransactionsAdminPage /></ProtectedRoute>} />
-              <Route path="/admin/staff" element={<ProtectedRoute><StaffAdminPage /></ProtectedRoute>} />
-              <Route path="/admin/kyc" element={<ProtectedRoute><KYCAdminPage /></ProtectedRoute>} />
-              <Route path="/admin/analytics" element={<ProtectedRoute><AnalyticsAdminPage /></ProtectedRoute>} />
-              <Route path="/admin/support" element={<ProtectedRoute><SupportAdminPage /></ProtectedRoute>} />
-              <Route path="/admin/system" element={<ProtectedRoute><SystemAdminPage /></ProtectedRoute>} />
-              {/* TODO: Add /admin/kyc, /admin/analytics, /admin/support, /admin/system routes */}
               <Route path="/user-analytics" element={<ProtectedRoute><UserAnalytics /></ProtectedRoute>} />
               <Route path="/payment/callback" element={<ProtectedRoute><PaymentCallback /></ProtectedRoute>} />
               <Route path="/payment-methods" element={<ProtectedRoute><PaymentMethods /></ProtectedRoute>} />
