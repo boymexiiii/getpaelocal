@@ -49,7 +49,7 @@ serve(async (req) => {
       created_at: new Date().toISOString()
     })
 
-    // Only handle successful charge events
+    // --- Handle Wallet Funding (charge.completed) ---
     if (event === 'charge.completed' && data.status === 'successful') {
       const txRef = data.tx_ref
       const userId = data.meta?.userId
@@ -92,9 +92,27 @@ serve(async (req) => {
         // Update transaction status
         await supabase
           .from('transactions')
-          .update({ status: 'completed' })
+          .update({ status: 'completed', flw_response: data })
           .eq('reference', txRef)
       }
+    }
+
+    // --- Handle Bank Transfer (transfer.completed, transfer.failed, transfer.reversed) ---
+    if (event === 'transfer.completed' || event === 'transfer.failed' || event === 'transfer.reversed') {
+      const flwRef = data.id || data.reference;
+      let newStatus = 'processing';
+      if (data.status === 'SUCCESSFUL') {
+        newStatus = 'completed';
+      } else if (data.status === 'FAILED') {
+        newStatus = 'failed';
+      } else if (data.status === 'REVERSED') {
+        newStatus = 'reversed';
+      }
+      // Update the transaction by flw_reference
+      await supabase
+        .from('transactions')
+        .update({ status: newStatus, flw_response: data })
+        .eq('flw_reference', flwRef)
     }
 
     return new Response('Webhook processed', { status: 200, headers: corsHeaders })

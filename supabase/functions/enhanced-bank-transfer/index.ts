@@ -180,6 +180,8 @@ serve(async (req) => {
     let transferResult;
     let transferSuccess = false;
     let transferReference = reference;
+    let txStatus = 'processing';
+    let flwResponse = null;
     
     if (provider === 'paystack') {
       // Initialize Paystack transfer with recipient code
@@ -204,6 +206,9 @@ serve(async (req) => {
       }
       transferSuccess = true;
       // Optionally, you can use transferResult.data.reference if Paystack returns it
+      if (transferResult.data && transferResult.data.status === 'success') {
+        txStatus = 'completed';
+      }
     } else {
       // Process Flutterwave transfer
       const transferResponse = await fetch('https://api.flutterwave.com/v3/transfers', {
@@ -229,9 +234,20 @@ serve(async (req) => {
         throw new Error(`Transfer failed: ${transferResult.message}`)
       }
       transferSuccess = true;
+      flwResponse = transferResult.data || null;
       // Optionally, you can use transferResult.data.id or transferResult.data.reference
       if (transferResult.data && transferResult.data.reference) {
         transferReference = transferResult.data.reference;
+      }
+      // Set status based on Flutterwave response
+      if (transferResult.data && transferResult.data.status) {
+        if (transferResult.data.status.toUpperCase() === 'SUCCESSFUL') {
+          txStatus = 'completed';
+        } else if (transferResult.data.status.toUpperCase() === 'FAILED') {
+          txStatus = 'failed';
+        } else {
+          txStatus = transferResult.data.status.toLowerCase();
+        }
       }
     }
 
@@ -259,8 +275,10 @@ serve(async (req) => {
         amount,
         currency: 'NGN',
         description: `Bank transfer to ${accountName} (${account_number}) - ${narration}`,
-        status: 'processing',
-        reference: transferReference
+        status: txStatus,
+        reference: transferReference,
+        flw_reference: provider === 'flutterwave' && transferResult.data ? (transferResult.data.id || transferResult.data.reference) : null,
+        flw_response: provider === 'flutterwave' && transferResult.data ? transferResult.data : null
       })
       .select()
       .single()
