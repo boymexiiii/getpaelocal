@@ -1,6 +1,7 @@
 
 import { ReactNode, useState, useEffect } from 'react';
 import Navigation from './Navigation';
+import NotificationBell from './NotificationBell';
 
 interface LayoutProps {
   children: ReactNode;
@@ -23,7 +24,10 @@ const Layout = ({ children }: LayoutProps) => {
     <div className="min-h-screen bg-gray-50">
       <Navigation />
       <main className={`p-6 transition-all duration-300 ${isMobile ? 'ml-0' : 'ml-64'}`}>
-        <div className={`max-w-7xl mx-auto ${isMobile ? 'pt-16' : ''}`}>
+        <div className="max-w-7xl mx-auto ${isMobile ? 'pt-16' : ''}">
+          <div className="flex justify-end items-center mb-4">
+            <NotificationBell />
+          </div>
           {children}
         </div>
       </main>

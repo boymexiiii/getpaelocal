@@ -40,10 +40,10 @@ const SendMoneyForm: React.FC<SendMoneyFormProps> = ({ onSuccess }) => {
 
     const amountValue = parseFloat(amount);
     
-    if (amountValue < 100) {
+    if (amountValue < 10) {
       toast({
         title: "Invalid Amount",
-        description: "Minimum transfer amount is ₦100",
+        description: "Minimum transfer amount is ₦10",
         variant: "destructive"
       });
       return;
@@ -161,7 +161,7 @@ const SendMoneyForm: React.FC<SendMoneyFormProps> = ({ onSuccess }) => {
                 className="pl-8"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                min="100"
+                min="10"
                 step="10"
                 required
               />

@@ -90,37 +90,65 @@ export const useBillPayments = () => {
         return { success: false, error: 'Insufficient balance' };
       }
 
-      // Determine bill type and service ID based on provider
-      let billType: 'airtime' | 'data' | 'electricity' = 'electricity';
-      let serviceId = providerId;
+      // Determine bill type based on provider category
+      let billType: 'airtime' | 'data' | 'electricity' | 'cable' | 'internet' = 'electricity';
       
       if (provider.category === 'airtime') billType = 'airtime';
       if (provider.category === 'internet') billType = 'data';
+      if (provider.category === 'tv') billType = 'cable';
       
-      // Call VTU.ng API
-      const { data, error: vtuError } = await supabase.functions.invoke('vtu-bills', {
+      // Call the new bill-payment function with Flutterwave integration
+      const { data, error: billError } = await supabase.functions.invoke('bill-payment', {
         body: {
           billType,
-          serviceId,
+          provider: provider.name,
           amount,
-          phone: billType === 'airtime' || billType === 'data' ? accountNumber : undefined,
-          meterNumber: billType === 'electricity' ? accountNumber : undefined,
-          dataPlan: billType === 'data' ? 'default' : undefined,
+          accountNumber,
+          customerName,
           userId: user.id
         }
       });
 
-      if (vtuError || !data.success) {
-        const errorMessage = vtuError?.message || data.error || 'Bill payment failed';
+      if (billError || !data.success) {
+        const errorMessage = billError?.message || data.error || 'Bill payment failed';
         return { success: false, error: errorMessage };
       }
 
-      toast({
-        title: "Payment Successful",
-        description: `${provider.name} payment completed successfully`,
-      });
+      // If payment is pending, verify it
+      if (data.reference) {
+        // Wait a moment for the payment to be processed
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Verify the payment status
+        const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-bill-payment', {
+          body: {
+            reference: data.reference,
+            userId: user.id
+          }
+        });
 
-      return { success: true, reference: data.data.requestId };
+        if (verifyError) {
+          console.error('Payment verification error:', verifyError);
+          // Don't fail the payment, just log the verification error
+        } else if (verifyData && verifyData.status === 'completed') {
+          toast({
+            title: "Payment Successful",
+            description: `${provider.name} payment completed successfully`,
+          });
+        } else if (verifyData && verifyData.status === 'pending') {
+          toast({
+            title: "Payment Initiated",
+            description: `${provider.name} payment is being processed. You'll be notified when completed.`,
+          });
+        }
+      } else {
+        toast({
+          title: "Payment Successful",
+          description: `${provider.name} payment completed successfully`,
+        });
+      }
+
+      return { success: true, reference: data.reference };
     } catch (error) {
       console.error('Bill payment error:', error);
       return { success: false, error: 'Payment failed. Please try again.' };

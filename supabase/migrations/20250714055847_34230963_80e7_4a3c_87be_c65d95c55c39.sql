@@ -1,8 +1,16 @@
--- Create storage buckets for KYC documents and profile images
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES 
-  ('kyc-documents', 'kyc-documents', false, 10485760, ARRAY['image/jpeg', 'image/png', 'application/pdf']),
-  ('profile-images', 'profile-images', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp']);
+-- Create storage buckets for KYC documents and profile images (only if they don't exist)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'kyc-documents') THEN
+        INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+        VALUES ('kyc-documents', 'kyc-documents', false, 10485760, ARRAY['image/jpeg', 'image/png', 'application/pdf']);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'profile-images') THEN
+        INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+        VALUES ('profile-images', 'profile-images', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp']);
+    END IF;
+END $$;
 
 -- Create storage policies for KYC documents (private - users can only access their own)
 DROP POLICY IF EXISTS "Users can view their own KYC documents" ON storage.objects;
@@ -73,10 +81,21 @@ CREATE TABLE IF NOT EXISTS public.otps (
   used_at TIMESTAMPTZ
 );
 
--- Index for quick lookup
-CREATE INDEX idx_otps_user_id ON public.otps(user_id);
-CREATE INDEX idx_otps_code ON public.otps(code);
-CREATE INDEX idx_otps_expires_at ON public.otps(expires_at);
+-- Index for quick lookup (only if they don't exist)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_otps_user_id') THEN
+        CREATE INDEX idx_otps_user_id ON public.otps(user_id);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_otps_code') THEN
+        CREATE INDEX idx_otps_code ON public.otps(code);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_otps_expires_at') THEN
+        CREATE INDEX idx_otps_expires_at ON public.otps(expires_at);
+    END IF;
+END $$;
 
 -- Add role field to profiles for RBAC
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';

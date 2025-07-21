@@ -22,10 +22,10 @@ const Fund = () => {
   const handleFund = async () => {
     const amountValue = parseFloat(amount);
     
-    if (!amount || amountValue < 100) {
+    if (!amount || amountValue < 10) {
       toast({
         title: "Invalid Amount",
-        description: "Please enter an amount of at least ₦100",
+        description: "Please enter an amount of at least ₦10",
         variant: "destructive"
       });
       return;
@@ -126,11 +126,11 @@ const Fund = () => {
                     placeholder="Enter amount"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    min="100"
+                    min="10"
                     max="500000"
                     step="100"
                   />
-                  <p className="text-sm text-gray-500 mt-1">Minimum: ₦100 • Maximum: ₦500,000</p>
+                  <p className="text-sm text-gray-500 mt-1">Minimum: ₦10 • Maximum: ₦500,000</p>
                 </div>
               </div>
             </CardContent>

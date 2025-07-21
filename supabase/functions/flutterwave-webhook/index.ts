@@ -14,116 +14,550 @@ function verifyFlutterwaveSignature(req: Request, secret: string): boolean {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
-  const FLW_SECRET_HASH = Deno.env.get('FLUTTERWAVE_WEBHOOK_SECRET_HASH') ?? ''
 
   try {
-    // Verify webhook signature
-    if (!verifyFlutterwaveSignature(req, FLW_SECRET_HASH)) {
-      await supabase.from('webhook_logs').insert({
-        provider: 'flutterwave',
-        event: 'invalid_signature',
-        payload: await req.text(),
-        status: 'error',
-        created_at: new Date().toISOString()
-      })
-      return new Response('Invalid signature', { status: 401, headers: corsHeaders })
-    }
-
     const body = await req.json()
-    const event = body.event
-    const data = body.data
+    console.log('Flutterwave webhook received:', body)
 
-    // Log all events
-    await supabase.from('webhook_logs').insert({
-      provider: 'flutterwave',
-      event,
-      payload: JSON.stringify(body),
-      status: 'received',
-      created_at: new Date().toISOString()
-    })
-
-    // --- Handle Wallet Funding (charge.completed) ---
-    if (event === 'charge.completed' && data.status === 'successful') {
-      const txRef = data.tx_ref
-      const userId = data.meta?.userId
-      const amount = data.amount
-
-      // Get user's wallet
-      const { data: wallet, error: walletError } = await supabase
-        .from('wallets')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('currency', 'NGN')
-        .single()
-
-      if (walletError || !wallet) {
-        await supabase.from('webhook_logs').insert({
-          provider: 'flutterwave',
-          event: 'wallet_not_found',
-          payload: JSON.stringify({ userId, txRef }),
-          status: 'error',
-          created_at: new Date().toISOString()
-        })
-        return new Response('Wallet not found', { status: 400, headers: corsHeaders })
-      }
-
-      // Check if transaction already completed (idempotency)
-      const { data: existingTx } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('reference', txRef)
-        .eq('status', 'completed')
-        .single()
-
-      if (!existingTx) {
-        // Update wallet balance
-        await supabase
-          .from('wallets')
-          .update({ balance: wallet.balance + amount })
-          .eq('id', wallet.id)
-
-        // Update transaction status
-        await supabase
-          .from('transactions')
-          .update({ status: 'completed', flw_response: data })
-          .eq('reference', txRef)
-      }
+    // Verify webhook signature
+    const signature = req.headers.get('verif-hash')
+    const secretHash = Deno.env.get('FLUTTERWAVE_WEBHOOK_SECRET')
+    
+    if (secretHash && signature !== secretHash) {
+      console.error('Invalid webhook signature')
+      return new Response('Unauthorized', { status: 401 })
     }
 
-    // --- Handle Bank Transfer (transfer.completed, transfer.failed, transfer.reversed) ---
-    if (event === 'transfer.completed' || event === 'transfer.failed' || event === 'transfer.reversed') {
-      const flwRef = data.id || data.reference;
-      let newStatus = 'processing';
-      if (data.status === 'SUCCESSFUL') {
-        newStatus = 'completed';
-      } else if (data.status === 'FAILED') {
-        newStatus = 'failed';
-      } else if (data.status === 'REVERSED') {
-        newStatus = 'reversed';
-      }
-      // Update the transaction by flw_reference
-      await supabase
-        .from('transactions')
-        .update({ status: newStatus, flw_response: data })
-        .eq('flw_reference', flwRef)
+    const { event, data } = body
+
+    if (!event || !data) {
+      throw new Error('Invalid webhook payload')
     }
 
-    return new Response('Webhook processed', { status: 200, headers: corsHeaders })
-  } catch (error) {
-    await supabase.from('webhook_logs').insert({
-      provider: 'flutterwave',
-      event: 'webhook_error',
-      payload: JSON.stringify({ error: error.message }),
-      status: 'error',
-      created_at: new Date().toISOString()
-    })
-    return new Response('Webhook error', { status: 500, headers: corsHeaders })
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Handle different event types
+    switch (event) {
+      case 'charge.completed':
+        await handleChargeCompleted(data, supabaseClient)
+        break
+      case 'transfer.completed':
+        await handleTransferCompleted(data, supabaseClient)
+        break
+      case 'transfer.failed':
+        await handleTransferFailed(data, supabaseClient)
+        break
+      case 'transfer.reversed':
+        await handleTransferReversed(data, supabaseClient)
+        break
+      case 'bill.completed':
+        await handleBillCompleted(data, supabaseClient)
+        break
+      case 'bill.failed':
+        await handleBillFailed(data, supabaseClient)
+        break
+      default:
+        console.log(`Unhandled event type: ${event}`)
+    }
+
+    return new Response('OK', { status: 200, headers: corsHeaders })
+
+  } catch (error: any) {
+    console.error('Webhook processing error:', error)
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: corsHeaders }
+    )
   }
-}) 
+})
+
+async function handleChargeCompleted(data: any, supabaseClient: any) {
+  console.log('Processing charge completed event:', data)
+  
+  const { id, reference, amount, customer, type, status } = data
+  
+  if (!reference) {
+    console.error('No reference found in charge completed event')
+    return
+  }
+
+  // Update transaction status
+  const { data: transaction, error: fetchError } = await supabaseClient
+    .from('transactions')
+    .select('*')
+    .eq('flw_reference', reference)
+    .single()
+
+  if (fetchError || !transaction) {
+    console.error('Transaction not found for reference:', reference)
+    return
+  }
+
+  // Update transaction status to completed
+  const { error: updateError } = await supabaseClient
+    .from('transactions')
+    .update({ 
+      status: 'completed',
+      flw_response: JSON.stringify(data)
+    })
+    .eq('id', transaction.id)
+
+  if (updateError) {
+    console.error('Failed to update transaction:', updateError)
+    return
+  }
+
+  // If transaction was pending, now debit the wallet
+  if (transaction.status === 'pending') {
+    const { data: wallet, error: walletError } = await supabaseClient
+      .from('wallets')
+      .select('*')
+      .eq('user_id', transaction.user_id)
+      .eq('currency', 'NGN')
+      .single()
+
+    if (walletError || !wallet) {
+      console.error('Wallet not found for user:', transaction.user_id)
+      return
+    }
+
+    // Debit wallet
+    const { error: debitError } = await supabaseClient
+      .from('wallets')
+      .update({ balance: wallet.balance - transaction.amount })
+      .eq('id', wallet.id)
+
+    if (debitError) {
+      console.error('Failed to debit wallet:', debitError)
+      return
+    }
+
+    console.log(`Successfully debited ₦${transaction.amount} from user ${transaction.user_id}`)
+  }
+
+  // Send notification to user
+  try {
+    await supabaseClient.functions.invoke('send-real-time-notification', {
+      body: {
+        userId: transaction.user_id,
+        title: 'Payment Successful',
+        message: `Your ${type?.toLowerCase() || 'payment'} of ₦${amount} has been completed successfully.`,
+        type: 'success'
+      }
+    })
+  } catch (error) {
+    console.error('Failed to send notification:', error)
+  }
+
+  console.log(`Charge payment completed for reference: ${reference}`)
+}
+
+async function handleTransferCompleted(data: any, supabaseClient: any) {
+  console.log('Processing transfer completed event:', data)
+  
+  const { id, reference, amount, customer, type, status } = data
+  
+  if (!reference) {
+    console.error('No reference found in transfer completed event')
+    return
+  }
+
+  // Update transaction status
+  const { data: transaction, error: fetchError } = await supabaseClient
+    .from('transactions')
+    .select('*')
+    .eq('flw_reference', reference)
+    .single()
+
+  if (fetchError || !transaction) {
+    console.error('Transaction not found for reference:', reference)
+    return
+  }
+
+  // Update transaction status to completed
+  const { error: updateError } = await supabaseClient
+    .from('transactions')
+    .update({ 
+      status: 'completed',
+      flw_response: JSON.stringify(data)
+    })
+    .eq('id', transaction.id)
+
+  if (updateError) {
+    console.error('Failed to update transaction:', updateError)
+    return
+  }
+
+  // If transaction was pending, now debit the wallet
+  if (transaction.status === 'pending') {
+    const { data: wallet, error: walletError } = await supabaseClient
+      .from('wallets')
+      .select('*')
+      .eq('user_id', transaction.user_id)
+      .eq('currency', 'NGN')
+      .single()
+
+    if (walletError || !wallet) {
+      console.error('Wallet not found for user:', transaction.user_id)
+      return
+    }
+
+    // Debit wallet
+    const { error: debitError } = await supabaseClient
+      .from('wallets')
+      .update({ balance: wallet.balance - transaction.amount })
+      .eq('id', wallet.id)
+
+    if (debitError) {
+      console.error('Failed to debit wallet:', debitError)
+      return
+    }
+
+    console.log(`Successfully debited ₦${transaction.amount} from user ${transaction.user_id}`)
+  }
+
+  // Send notification to user
+  try {
+    await supabaseClient.functions.invoke('send-real-time-notification', {
+      body: {
+        userId: transaction.user_id,
+        title: 'Transfer Successful',
+        message: `Your ${type?.toLowerCase() || 'transfer'} of ₦${amount} has been completed successfully.`,
+        type: 'success'
+      }
+    })
+  } catch (error) {
+    console.error('Failed to send notification:', error)
+  }
+
+  console.log(`Transfer completed for reference: ${reference}`)
+}
+
+async function handleTransferFailed(data: any, supabaseClient: any) {
+  console.log('Processing transfer failed event:', data)
+  
+  const { id, reference, amount, customer, type, status } = data
+  
+  if (!reference) {
+    console.error('No reference found in transfer failed event')
+    return
+  }
+
+  // Update transaction status
+  const { data: transaction, error: fetchError } = await supabaseClient
+    .from('transactions')
+    .select('*')
+    .eq('flw_reference', reference)
+    .single()
+
+  if (fetchError || !transaction) {
+    console.error('Transaction not found for reference:', reference)
+    return
+  }
+
+  // Update transaction status to failed
+  const { error: updateError } = await supabaseClient
+    .from('transactions')
+    .update({ 
+      status: 'failed',
+      flw_response: JSON.stringify(data)
+    })
+    .eq('id', transaction.id)
+
+  if (updateError) {
+    console.error('Failed to update transaction:', updateError)
+    return
+  }
+
+  // If wallet was already debited, refund the user
+  if (transaction.status === 'completed') {
+    const { data: wallet, error: walletError } = await supabaseClient
+      .from('wallets')
+      .select('*')
+      .eq('user_id', transaction.user_id)
+      .eq('currency', 'NGN')
+      .single()
+
+    if (walletError || !wallet) {
+      console.error('Wallet not found for user:', transaction.user_id)
+      return
+    }
+
+    // Refund wallet
+    const { error: refundError } = await supabaseClient
+      .from('wallets')
+      .update({ balance: wallet.balance + transaction.amount })
+      .eq('id', wallet.id)
+
+    if (refundError) {
+      console.error('Failed to refund wallet:', refundError)
+      return
+    }
+
+    console.log(`Successfully refunded ₦${transaction.amount} to user ${transaction.user_id}`)
+  }
+
+  // Send notification to user
+  try {
+    await supabaseClient.functions.invoke('send-real-time-notification', {
+      body: {
+        userId: transaction.user_id,
+        title: 'Transfer Failed',
+        message: `Your ${type?.toLowerCase() || 'transfer'} of ₦${amount} has failed. Please try again.`,
+        type: 'error'
+      }
+    })
+  } catch (error) {
+    console.error('Failed to send notification:', error)
+  }
+
+  console.log(`Transfer failed for reference: ${reference}`)
+}
+
+async function handleTransferReversed(data: any, supabaseClient: any) {
+  console.log('Processing transfer reversed event:', data)
+  
+  const { id, reference, amount, customer, type, status } = data
+  
+  if (!reference) {
+    console.error('No reference found in transfer reversed event')
+    return
+  }
+
+  // Update transaction status
+  const { data: transaction, error: fetchError } = await supabaseClient
+    .from('transactions')
+    .select('*')
+    .eq('flw_reference', reference)
+    .single()
+
+  if (fetchError || !transaction) {
+    console.error('Transaction not found for reference:', reference)
+    return
+  }
+
+  // Update transaction status to reversed
+  const { error: updateError } = await supabaseClient
+    .from('transactions')
+    .update({ 
+      status: 'reversed',
+      flw_response: JSON.stringify(data)
+    })
+    .eq('id', transaction.id)
+
+  if (updateError) {
+    console.error('Failed to update transaction:', updateError)
+    return
+  }
+
+  // If wallet was already debited, refund the user
+  if (transaction.status === 'completed') {
+    const { data: wallet, error: walletError } = await supabaseClient
+      .from('wallets')
+      .select('*')
+      .eq('user_id', transaction.user_id)
+      .eq('currency', 'NGN')
+      .single()
+
+    if (walletError || !wallet) {
+      console.error('Wallet not found for user:', transaction.user_id)
+      return
+    }
+
+    // Refund wallet
+    const { error: refundError } = await supabaseClient
+      .from('wallets')
+      .update({ balance: wallet.balance + transaction.amount })
+      .eq('id', wallet.id)
+
+    if (refundError) {
+      console.error('Failed to refund wallet:', refundError)
+      return
+    }
+
+    console.log(`Successfully refunded ₦${transaction.amount} to user ${transaction.user_id}`)
+  }
+
+  // Send notification to user
+  try {
+    await supabaseClient.functions.invoke('send-real-time-notification', {
+      body: {
+        userId: transaction.user_id,
+        title: 'Transfer Reversed',
+        message: `Your ${type?.toLowerCase() || 'transfer'} of ₦${amount} has been reversed.`,
+        type: 'info'
+      }
+    })
+  } catch (error) {
+    console.error('Failed to send notification:', error)
+  }
+
+  console.log(`Transfer reversed for reference: ${reference}`)
+}
+
+async function handleBillCompleted(data: any, supabaseClient: any) {
+  console.log('Processing bill completed event:', data)
+  
+  const { id, reference, amount, customer, type, status } = data
+  
+  if (!reference) {
+    console.error('No reference found in bill completed event')
+    return
+  }
+
+  // Update transaction status
+  const { data: transaction, error: fetchError } = await supabaseClient
+    .from('transactions')
+    .select('*')
+    .eq('flw_reference', reference)
+    .single()
+
+  if (fetchError || !transaction) {
+    console.error('Transaction not found for reference:', reference)
+    return
+  }
+
+  // Update transaction status to completed
+  const { error: updateError } = await supabaseClient
+    .from('transactions')
+    .update({ 
+      status: 'completed',
+      flw_response: JSON.stringify(data)
+    })
+    .eq('id', transaction.id)
+
+  if (updateError) {
+    console.error('Failed to update transaction:', updateError)
+    return
+  }
+
+  // If transaction was pending, now debit the wallet
+  if (transaction.status === 'pending') {
+    const { data: wallet, error: walletError } = await supabaseClient
+      .from('wallets')
+      .select('*')
+      .eq('user_id', transaction.user_id)
+      .eq('currency', 'NGN')
+      .single()
+
+    if (walletError || !wallet) {
+      console.error('Wallet not found for user:', transaction.user_id)
+      return
+    }
+
+    // Debit wallet
+    const { error: debitError } = await supabaseClient
+      .from('wallets')
+      .update({ balance: wallet.balance - transaction.amount })
+      .eq('id', wallet.id)
+
+    if (debitError) {
+      console.error('Failed to debit wallet:', debitError)
+      return
+    }
+
+    console.log(`Successfully debited ₦${transaction.amount} from user ${transaction.user_id}`)
+  }
+
+  // Send notification to user
+  try {
+    await supabaseClient.functions.invoke('send-real-time-notification', {
+      body: {
+        userId: transaction.user_id,
+        title: 'Bill Payment Successful',
+        message: `Your ${type?.toLowerCase() || 'bill'} payment of ₦${amount} has been completed successfully.`,
+        type: 'success'
+      }
+    })
+  } catch (error) {
+    console.error('Failed to send notification:', error)
+  }
+
+  console.log(`Bill payment completed for reference: ${reference}`)
+}
+
+async function handleBillFailed(data: any, supabaseClient: any) {
+  console.log('Processing bill failed event:', data)
+  
+  const { id, reference, amount, customer, type, status } = data
+  
+  if (!reference) {
+    console.error('No reference found in bill failed event')
+    return
+  }
+
+  // Update transaction status
+  const { data: transaction, error: fetchError } = await supabaseClient
+    .from('transactions')
+    .select('*')
+    .eq('flw_reference', reference)
+    .single()
+
+  if (fetchError || !transaction) {
+    console.error('Transaction not found for reference:', reference)
+    return
+  }
+
+  // Update transaction status to failed
+  const { error: updateError } = await supabaseClient
+    .from('transactions')
+    .update({ 
+      status: 'failed',
+      flw_response: JSON.stringify(data)
+    })
+    .eq('id', transaction.id)
+
+  if (updateError) {
+    console.error('Failed to update transaction:', updateError)
+    return
+  }
+
+  // If wallet was already debited, refund the user
+  if (transaction.status === 'completed') {
+    const { data: wallet, error: walletError } = await supabaseClient
+      .from('wallets')
+      .select('*')
+      .eq('user_id', transaction.user_id)
+      .eq('currency', 'NGN')
+      .single()
+
+    if (walletError || !wallet) {
+      console.error('Wallet not found for user:', transaction.user_id)
+      return
+    }
+
+    // Refund wallet
+    const { error: refundError } = await supabaseClient
+      .from('wallets')
+      .update({ balance: wallet.balance + transaction.amount })
+      .eq('id', wallet.id)
+
+    if (refundError) {
+      console.error('Failed to refund wallet:', refundError)
+      return
+    }
+
+    console.log(`Successfully refunded ₦${transaction.amount} to user ${transaction.user_id}`)
+  }
+
+  // Send notification to user
+  try {
+    await supabaseClient.functions.invoke('send-real-time-notification', {
+      body: {
+        userId: transaction.user_id,
+        title: 'Bill Payment Failed',
+        message: `Your ${type?.toLowerCase() || 'bill'} payment of ₦${amount} has failed. Please try again.`,
+        type: 'error'
+      }
+    })
+  } catch (error) {
+    console.error('Failed to send notification:', error)
+  }
+
+  console.log(`Bill payment failed for reference: ${reference}`)
+} 

@@ -48,6 +48,11 @@ serve(async (req) => {
       throw new Error('Missing required fields for bank transfer')
     }
 
+    // Validate minimum amount
+    if (amount < 10) {
+      throw new Error('Minimum bank transfer amount is ₦10')
+    }
+
     // Verify account number first using the selected provider
     let accountName = '';
     
@@ -182,6 +187,7 @@ serve(async (req) => {
     let transferReference = reference;
     let txStatus = 'processing';
     let flwResponse = null;
+    let flwReference = null;
     
     if (provider === 'paystack') {
       // Initialize Paystack transfer with recipient code
@@ -234,10 +240,12 @@ serve(async (req) => {
         throw new Error(`Transfer failed: ${transferResult.message}`)
       }
       transferSuccess = true;
-      flwResponse = transferResult.data || null;
-      // Optionally, you can use transferResult.data.id or transferResult.data.reference
-      if (transferResult.data && transferResult.data.reference) {
-        transferReference = transferResult.data.reference;
+      // Always save the correct Flutterwave reference/id
+      if (transferResult.data && (transferResult.data.id || transferResult.data.reference)) {
+        transferReference = transferResult.data.reference || reference;
+        flwReference = transferResult.data.id || transferResult.data.reference;
+      } else {
+        flwReference = null;
       }
       // Set status based on Flutterwave response
       if (transferResult.data && transferResult.data.status) {
@@ -277,7 +285,7 @@ serve(async (req) => {
         description: `Bank transfer to ${accountName} (${account_number}) - ${narration}`,
         status: txStatus,
         reference: transferReference,
-        flw_reference: provider === 'flutterwave' && transferResult.data ? (transferResult.data.id || transferResult.data.reference) : null,
+        flw_reference: provider === 'flutterwave' ? flwReference : null,
         flw_response: provider === 'flutterwave' && transferResult.data ? transferResult.data : null
       })
       .select()

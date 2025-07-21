@@ -33,31 +33,68 @@ export const useBVNVerification = () => {
     setLoading(true);
 
     try {
-      // --- SUPABASE EDGE FUNCTION BVN VERIFICATION ---
-      const { data, error } = await supabase.functions.invoke('bvn-verify', {
+      console.log('Starting BVN verification for:', bvn);
+      
+      // Try Flutterwave BVN verification first
+      let { data, error } = await supabase.functions.invoke('bvn-verify', {
         body: { bvn: bvn.trim() }
       });
+
+      console.log('Flutterwave result:', { data, error });
+
+      // If Flutterwave fails, try Mono as fallback
       if (error || !data || data.status !== 'success') {
-        toast({
-          title: "Verification Failed",
-          description: (data && data.message) || error?.message || "Failed to verify BVN. Please try again.",
-          variant: "destructive"
+        console.log('Flutterwave BVN verification failed, trying Mono...');
+        
+        const monoResult = await supabase.functions.invoke('mono-bvn-verify', {
+          body: { 
+            bvn: bvn.trim(),
+            user_id: user.id 
+          }
         });
-        return { success: false, verified: false, error: (data && data.message) || error?.message };
+
+        console.log('Mono result:', monoResult);
+
+        if (monoResult.error || !monoResult.data || !monoResult.data.success) {
+          const errorMessage = (monoResult.data && monoResult.data.error) || 
+                              monoResult.error?.message || 
+                              "Failed to verify BVN. Please try again.";
+          
+          toast({
+            title: "Verification Failed",
+            description: errorMessage,
+            variant: "destructive"
+          });
+          
+          return { 
+            success: false, 
+            verified: false, 
+            error: errorMessage 
+          };
+        }
+
+        // Use Mono data
+        data = monoResult.data;
       }
-      // Map Flutterwave response to expected format
+
+      // Map response to expected format
       const bvnData = {
         first_name: data.data.first_name,
         last_name: data.data.last_name,
         date_of_birth: data.data.date_of_birth,
-        phone: data.data.phone_number,
+        phone: data.data.phone,
         verification_status: 'verified',
       };
+
       setVerificationData(bvnData);
+      
+      // Show success message with provider info
+      const provider = data.message ? ' (Fallback)' : ' (Flutterwave)';
       toast({
         title: "BVN Verified Successfully",
-        description: `Welcome ${bvnData.first_name} ${bvnData.last_name}! Your details have been pre-filled.`,
+        description: `Welcome ${bvnData.first_name} ${bvnData.last_name}!${provider}`,
       });
+
       return {
         success: true,
         verified: true,
@@ -66,14 +103,17 @@ export const useBVNVerification = () => {
           date_of_birth: bvnData.date_of_birth ? new Date(bvnData.date_of_birth).toISOString().split('T')[0] : ''
         }
       };
+
     } catch (error) {
       console.error('Unexpected error during BVN verification:', error);
       const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      
       toast({
         title: "Verification Error",
         description: errorMessage,
         variant: "destructive"
       });
+      
       return { success: false, verified: false, error: errorMessage };
     } finally {
       setLoading(false);

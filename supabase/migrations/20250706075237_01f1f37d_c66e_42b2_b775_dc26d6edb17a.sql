@@ -34,6 +34,14 @@ ON public.notifications
 FOR UPDATE 
 USING (true);
 
--- Create index for better performance
-CREATE INDEX idx_notifications_user_id ON public.notifications(user_id);
-CREATE INDEX idx_notifications_created_at ON public.notifications(created_at DESC);
+-- Create indexes for better performance (only if they don't exist)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_notifications_user_id') THEN
+        CREATE INDEX idx_notifications_user_id ON public.notifications(user_id);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_notifications_created_at') THEN
+        CREATE INDEX idx_notifications_created_at ON public.notifications(created_at DESC);
+    END IF;
+END $$;

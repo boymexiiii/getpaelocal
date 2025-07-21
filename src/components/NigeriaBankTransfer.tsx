@@ -59,6 +59,16 @@ const NigeriaBankTransfer = () => {
       return;
     }
 
+    const amountValue = parseFloat(transferData.amount);
+    if (amountValue < 10) {
+      toast({
+        title: "Invalid Amount",
+        description: "Minimum bank transfer amount is ₦10",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const result = await initiateDirectTransfer({
       bank_code: transferData.bank_code,
       account_number: transferData.account_number,
@@ -184,6 +194,7 @@ const NigeriaBankTransfer = () => {
                     placeholder="5000"
                     value={transferData.amount}
                     onChange={(e) => setTransferData(prev => ({ ...prev, amount: e.target.value }))}
+                    min="10"
                   />
                 </div>
                 <div className="space-y-2">

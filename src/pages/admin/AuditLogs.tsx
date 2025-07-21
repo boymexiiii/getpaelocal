@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { useAdminData } from '@/hooks/useAdminData';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Download, Eye } from 'lucide-react';
 
 const PAGE_SIZE = 10;
 
@@ -10,6 +14,8 @@ const AuditLogsAdminPage: React.FC = () => {
   const [actionFilter, setActionFilter] = useState('');
   const [userFilter, setUserFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
 
   // Filtering
   const filteredLogs = auditLogs.filter((log) => {
@@ -28,6 +34,64 @@ const AuditLogsAdminPage: React.FC = () => {
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) setPage(newPage);
   };
+
+  const handleView = (log: any) => {
+    setSelectedLog(log);
+    setDetailsModalOpen(true);
+  };
+  const handleCloseDetails = () => {
+    setDetailsModalOpen(false);
+    setSelectedLog(null);
+  };
+
+  function toCSV(rows: any[], columns: { key: string, label: string }[]) {
+    const header = columns.map(col => `"${col.label}"`).join(',');
+    const body = rows.map(row =>
+      columns.map(col => `"${(row[col.key] ?? '').toString().replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+    return `${header}\n${body}`;
+  }
+  function downloadCSV(filename: string, csv: string) {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }
+  const handleExportCSV = () => {
+    const columns = [
+      { key: 'id', label: 'ID' },
+      { key: 'action', label: 'Action' },
+      { key: 'user_id', label: 'User ID' },
+      { key: 'table_name', label: 'Table' },
+      { key: 'record_id', label: 'Record ID' },
+      { key: 'created_at', label: 'Timestamp' },
+      { key: 'ip_address', label: 'IP Address' },
+      { key: 'user_agent', label: 'User Agent' },
+      { key: 'old_data', label: 'Old Data' },
+      { key: 'new_data', label: 'New Data' },
+    ];
+    const rows = filteredLogs.map(l => ({
+      ...l,
+      old_data: JSON.stringify(l.old_data),
+      new_data: JSON.stringify(l.new_data)
+    }));
+    const csv = toCSV(rows, columns);
+    downloadCSV('audit_logs.csv', csv);
+  };
+  function actionColor(action: string) {
+    if (action.includes('APPROVE')) return 'bg-green-100 text-green-800';
+    if (action.includes('REJECT')) return 'bg-red-100 text-red-800';
+    if (action.includes('LOGIN')) return 'bg-blue-100 text-blue-800';
+    if (action.includes('CREATE') || action.includes('INSERT')) return 'bg-yellow-100 text-yellow-800';
+    if (action.includes('UPDATE')) return 'bg-purple-100 text-purple-800';
+    if (action.includes('DELETE')) return 'bg-gray-200 text-gray-800';
+    return 'bg-gray-100 text-gray-800';
+  }
 
   return (
     <AdminLayout>
@@ -55,6 +119,9 @@ const AuditLogsAdminPage: React.FC = () => {
             onChange={(e) => setActionFilter(e.target.value)}
             className="border rounded px-3 py-2"
           />
+          <Button size="sm" variant="outline" className="ml-2" onClick={handleExportCSV} title="Export filtered logs to CSV">
+            <Download className="w-4 h-4 mr-1" /> Export CSV
+          </Button>
         </div>
         {loading ? (
           <div>Loading audit logs...</div>
@@ -74,11 +141,15 @@ const AuditLogsAdminPage: React.FC = () => {
                 {paginatedLogs.map((log) => (
                   <tr key={log.id} className="border-t">
                     <td className="px-4 py-2">{log.id}</td>
-                    <td className="px-4 py-2">{log.action}</td>
-                    <td className="px-4 py-2">{log.user_name}</td>
-                    <td className="px-4 py-2">{new Date(log.timestamp).toLocaleString()}</td>
                     <td className="px-4 py-2">
-                      <button className="text-blue-600 hover:underline mr-2" onClick={() => handleView(log)}>View</button>
+                      <Badge className={actionColor(log.action)}>{log.action}</Badge>
+                    </td>
+                    <td className="px-4 py-2">{log.user_name}</td>
+                    <td className="px-4 py-2">{new Date(log.created_at).toLocaleString()}</td>
+                    <td className="px-4 py-2">
+                      <Button size="icon" variant="ghost" onClick={() => handleView(log)} title="View Details">
+                        <Eye className="w-4 h-4" />
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -118,6 +189,30 @@ const AuditLogsAdminPage: React.FC = () => {
           </div>
         )}
       </div>
+      <Dialog open={detailsModalOpen} onOpenChange={v => { if (!v) handleCloseDetails(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Audit Log Details</DialogTitle>
+            <DialogDescription>Full details of the selected audit log entry</DialogDescription>
+          </DialogHeader>
+          {selectedLog ? (
+            <div className="space-y-2 text-sm">
+              <div><span className="font-medium">ID:</span> {selectedLog.id}</div>
+              <div><span className="font-medium">Action:</span> <Badge className={actionColor(selectedLog.action)}>{selectedLog.action}</Badge></div>
+              <div><span className="font-medium">User ID:</span> {selectedLog.user_id}</div>
+              <div><span className="font-medium">Table:</span> {selectedLog.table_name}</div>
+              <div><span className="font-medium">Record ID:</span> {selectedLog.record_id}</div>
+              <div><span className="font-medium">Timestamp:</span> {new Date(selectedLog.created_at).toLocaleString()}</div>
+              <div><span className="font-medium">IP Address:</span> {selectedLog.ip_address}</div>
+              <div><span className="font-medium">User Agent:</span> <span className="break-all">{selectedLog.user_agent}</span></div>
+              <div><span className="font-medium">Old Data:</span> <pre className="bg-gray-100 rounded p-2 overflow-x-auto max-h-40">{JSON.stringify(selectedLog.old_data, null, 2)}</pre></div>
+              <div><span className="font-medium">New Data:</span> <pre className="bg-gray-100 rounded p-2 overflow-x-auto max-h-40">{JSON.stringify(selectedLog.new_data, null, 2)}</pre></div>
+            </div>
+          ) : (
+            <div className="text-center text-gray-500">Loading...</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

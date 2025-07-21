@@ -19,6 +19,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import NotificationBell from '@/components/NotificationBell';
 
 const Navigation = () => {
   const { user, signOut } = useAuth();
@@ -168,7 +169,7 @@ const Navigation = () => {
   if (isAdminRoute && (isAdmin || adminCodeEntered)) {
     return (
       <nav className="bg-white border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col shadow-sm z-50 w-64">
-        <div className="p-6 border-b border-gray-100">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <NavLink to="/admin" className="flex items-center space-x-2 text-xl font-bold">
             <img 
               src="/lovable-uploads/61394b0e-fa0e-4b6f-a9fe-e79413ec7cfa.png" 
@@ -177,6 +178,7 @@ const Navigation = () => {
             />
             <span className="bg-gradient-to-r from-purple-600 to-teal-600 bg-clip-text text-transparent">Admin</span>
           </NavLink>
+          <NotificationBell />
         </div>
         <div className="flex-1 px-4 py-6 overflow-y-auto">
           {adminSidebarSections.map(section => (

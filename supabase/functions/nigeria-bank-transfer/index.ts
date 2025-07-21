@@ -48,6 +48,11 @@ serve(async (req) => {
       throw new Error('Missing required fields for bank transfer')
     }
 
+    // Validate minimum amount
+    if (amount < 10) {
+      throw new Error('Minimum bank transfer amount is ₦10')
+    }
+
     // Check user's NGN wallet balance
     const { data: wallet, error: walletError } = await supabaseClient
       .from('wallets')

@@ -1,18 +1,35 @@
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { 
+  User, 
+  Phone, 
+  Calendar, 
+  Briefcase, 
+  DollarSign, 
+  Upload, 
+  FileText, 
+  CheckCircle, 
+  Clock, 
+  XCircle,
+  Shield,
+  AlertCircle
+} from 'lucide-react';
+import Layout from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useKYC } from '@/hooks/useKYC';
 import { useBVNVerification } from '@/hooks/useBVNVerification';
 import { useTransactionLimits } from '@/hooks/useTransactionLimits';
 import { useSentry } from '@/hooks/useSentry';
-import { Shield, CheckCircle, AlertCircle, User, Phone, Calendar, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import Layout from '@/components/Layout';
 import BVNVerificationForm from '@/components/BVNVerificationForm';
+import { supabase } from '@/integrations/supabase/client';
 
 const KYC = () => {
   const { user } = useAuth();
@@ -28,9 +45,17 @@ const KYC = () => {
     date_of_birth: '',
     occupation: '',
     source_of_funds: '',
-    monthly_income_range: ''
+    monthly_income_range: '',
+    first_name: '',
+    last_name: '',
   });
-  const [currentStep, setCurrentStep] = useState<'bvn' | 'details' | 'review'>('bvn');
+  const [currentStep, setCurrentStep] = useState<'bvn' | 'details' | 'documents' | 'review'>('bvn');
+  const [documents, setDocuments] = useState<{
+    id_card?: File;
+    proof_of_address?: File;
+    proof_of_income?: File;
+  }>({});
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (application) {
@@ -40,17 +65,22 @@ const KYC = () => {
         date_of_birth: '',
         occupation: application.occupation || '',
         source_of_funds: application.source_of_funds || '',
-        monthly_income_range: application.monthly_income_range || ''
+        monthly_income_range: application.monthly_income_range || '',
+        first_name: application.first_name || '',
+        last_name: application.last_name || '',
       });
-      
-      // Determine current step based on application state
-      if (application.bvn && isVerified) {
+      // Always show details step if BVN is verified and not yet submitted
+      if (isVerified && (!application.status || application.status === 'draft')) {
         setCurrentStep('details');
-      } else if (application.status === 'submitted') {
+      } else if (application.status === 'submitted' || application.status === 'under_review') {
         setCurrentStep('review');
-      } else {
+      } else if (!isVerified) {
         setCurrentStep('bvn');
       }
+    } else if (isVerified) {
+      setCurrentStep('details');
+    } else {
+      setCurrentStep('bvn');
     }
   }, [application, isVerified]);
 
@@ -61,7 +91,14 @@ const KYC = () => {
       const result = await verifyBVN(bvn);
       
       if (result.success && result.verified) {
-        setFormData(prev => ({ ...prev, bvn }));
+        setFormData(prev => ({
+          ...prev,
+          bvn: data.bvn || prev.bvn,
+          first_name: data.first_name || prev.first_name,
+          last_name: data.last_name || prev.last_name,
+          date_of_birth: data.date_of_birth || prev.date_of_birth,
+          phone: data.phone || prev.phone,
+        }));
         setCurrentStep('details');
         logUserAction('kyc_bvn_verification_success');
         
@@ -77,9 +114,52 @@ const KYC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleDocumentUpload = async (type: string, file: File) => {
+    if (!user) return;
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${type}_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('kyc-documents')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Update documents state
+      setDocuments(prev => ({ ...prev, [type]: file }));
+      
+      toast({
+        title: "Document Uploaded",
+        description: `${type.replace('_', ' ')} uploaded successfully`,
+      });
+    } catch (error) {
+      logError(error as Error, { step: 'document_upload', type });
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload document. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Replace handleSubmit with handleDetailsNext for personal details step
+  const handleDetailsNext = (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setCurrentStep('documents');
+  };
+
+  // Add a helper to check if required docs are uploaded
+  const hasRequiredDocs = () => {
+    return !!documents.id_card && !!documents.proof_of_address;
+  };
+
+  // Update handleSubmit to only be used in review step
+  const handleFinalSubmit = async () => {
     if (!isVerified) {
       toast({
         title: "BVN Verification Required",
@@ -88,10 +168,16 @@ const KYC = () => {
       });
       return;
     }
-
+    if (!hasRequiredDocs()) {
+      toast({
+        title: "Documents Required",
+        description: "Please upload all required documents before submitting.",
+        variant: "destructive"
+      });
+      return;
+    }
     try {
       logUserAction('kyc_application_submission_started');
-      
       if (!application) {
         const result = await createApplication({
           bvn: formData.bvn,
@@ -99,7 +185,6 @@ const KYC = () => {
           source_of_funds: formData.source_of_funds,
           monthly_income_range: formData.monthly_income_range
         });
-        
         if (result.error) {
           logError(new Error(result.error), { step: 'create_application' });
           toast({
@@ -110,9 +195,7 @@ const KYC = () => {
           return;
         }
       }
-      
       const result = await submitApplication();
-      
       if (result.error) {
         logError(new Error(result.error), { step: 'submit_application' });
         toast({
@@ -141,55 +224,78 @@ const KYC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
-        return (
-          <div className="flex items-center space-x-2 text-green-600">
-            <CheckCircle className="w-5 h-5" />
-            <span>Verified</span>
-          </div>
-        );
+        return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
       case 'submitted':
+        return <Badge className="bg-blue-100 text-blue-800">Under Review</Badge>;
       case 'under_review':
-        return (
-          <div className="flex items-center space-x-2 text-yellow-600">
-            <AlertCircle className="w-5 h-5" />
-            <span>Under Review</span>
-          </div>
-        );
+        return <Badge className="bg-yellow-100 text-yellow-800">In Review</Badge>;
       default:
-        return (
-          <div className="flex items-center space-x-2 text-gray-600">
-            <Shield className="w-5 h-5" />
-            <span>Not Started</span>
-          </div>
-        );
+        return <Badge className="bg-gray-100 text-gray-800">Draft</Badge>;
     }
   };
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-        </div>
-      </Layout>
-    );
-  }
+  const getProgressValue = () => {
+    switch (currentStep) {
+      case 'bvn': return 25;
+      case 'details': return 50;
+      case 'documents': return 75;
+      case 'review': return 100;
+      default: return 0;
+    }
+  };
+
+  // Add a helper to go back to previous step
+  const handleBack = () => {
+    if (currentStep === 'details') setCurrentStep('bvn');
+    else if (currentStep === 'documents') setCurrentStep('details');
+    else if (currentStep === 'review') setCurrentStep('documents');
+  };
+
+  // Fetch per-document feedback for the user
+  const [docFeedback, setDocFeedback] = React.useState<{ [key: string]: string }>({});
+  React.useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('kyc_documents')
+      .select('document_type, reviewer_notes')
+      .eq('user_id', user.id)
+      .then(({ data }) => {
+        if (data) {
+          const map: { [key: string]: string } = {};
+          data.forEach((doc: any) => {
+            if (doc.reviewer_notes) map[doc.document_type] = doc.reviewer_notes;
+          });
+          setDocFeedback(map);
+        }
+      });
+  }, [user, currentStep]);
 
   return (
     <Layout>
       <div className="p-6">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">KYC Verification</h1>
             <p className="text-gray-600">Complete your identity verification to unlock all features</p>
           </div>
 
-          {/* Progress Indicator */}
+          {/* Progress Bar */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Progress</span>
+              <span className="text-sm text-gray-500">{getProgressValue()}% Complete</span>
+            </div>
+            <Progress value={getProgressValue()} className="h-2" />
+          </div>
+
+          {/* Progress Steps */}
           <div className="mb-6">
             <div className="flex items-center justify-between">
               <div className={`flex items-center ${currentStep === 'bvn' ? 'text-purple-600' : isVerified ? 'text-green-600' : 'text-gray-400'}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${isVerified ? 'bg-green-600 border-green-600 text-white' : currentStep === 'bvn' ? 'border-purple-600' : 'border-gray-300'}`}>
-                  1
+                  {isVerified ? <CheckCircle className="w-4 h-4" /> : '1'}
                 </div>
                 <span className="ml-2 text-sm font-medium">BVN Verification</span>
               </div>
@@ -199,9 +305,15 @@ const KYC = () => {
                 </div>
                 <span className="ml-2 text-sm font-medium">Personal Details</span>
               </div>
+              <div className={`flex items-center ${currentStep === 'documents' ? 'text-purple-600' : 'text-gray-400'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${currentStep === 'documents' ? 'border-purple-600' : 'border-gray-300'}`}>
+                  3
+                </div>
+                <span className="ml-2 text-sm font-medium">Documents</span>
+              </div>
               <div className={`flex items-center ${currentStep === 'review' ? 'text-purple-600' : 'text-gray-400'}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${currentStep === 'review' ? 'border-purple-600' : 'border-gray-300'}`}>
-                  3
+                  4
                 </div>
                 <span className="ml-2 text-sm font-medium">Review</span>
               </div>
@@ -233,9 +345,20 @@ const KYC = () => {
                     )}
                   </div>
                 ) : application?.status === 'submitted' || application?.status === 'under_review' ? (
-                  <p>We're reviewing your application. This usually takes 1-3 business days.</p>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <p>We're reviewing your application. This usually takes 1-3 business days.</p>
+                  </div>
+                ) : application?.status === 'rejected' ? (
+                  <div className="flex items-center space-x-2">
+                    <XCircle className="w-4 h-4 text-red-600" />
+                    <p>Your application was rejected. Please review the feedback and resubmit.</p>
+                  </div>
                 ) : (
-                  <p>Complete the form below to start your verification process.</p>
+                  <div className="flex items-center space-x-2">
+                    <Shield className="w-4 h-4 text-purple-600" />
+                    <p>Complete the form below to start your verification process.</p>
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -245,7 +368,14 @@ const KYC = () => {
           {currentStep === 'bvn' && (
             <BVNVerificationForm
               onVerificationSuccess={(data) => {
-                setFormData(prev => ({ ...prev, bvn: prev.bvn }));
+                setFormData(prev => ({
+                  ...prev,
+                  bvn: data.bvn || prev.bvn,
+                  first_name: data.first_name || prev.first_name,
+                  last_name: data.last_name || prev.last_name,
+                  date_of_birth: data.date_of_birth || prev.date_of_birth,
+                  phone: data.phone || prev.phone,
+                }));
                 setCurrentStep('details');
               }}
               onVerificationError={(error) => {
@@ -255,7 +385,7 @@ const KYC = () => {
           )}
 
           {/* Personal Details Step */}
-          {currentStep === 'details' && isVerified && (
+          {currentStep === 'details' && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -264,7 +394,29 @@ const KYC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleDetailsNext} className="space-y-4">
+                  <div>
+                    <Label htmlFor="first_name">First Name</Label>
+                    <Input
+                      id="first_name"
+                      className="pl-10"
+                      value={formData.first_name}
+                      onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+                      placeholder="First Name"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="last_name">Last Name</Label>
+                    <Input
+                      id="last_name"
+                      className="pl-10"
+                      value={formData.last_name}
+                      onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+                      placeholder="Last Name"
+                      required
+                    />
+                  </div>
                   <div>
                     <Label htmlFor="phone">Phone Number</Label>
                     <div className="relative">
@@ -297,70 +449,217 @@ const KYC = () => {
 
                   <div>
                     <Label htmlFor="occupation">Occupation</Label>
-                    <Input
-                      id="occupation"
-                      value={formData.occupation}
-                      onChange={(e) => setFormData({...formData, occupation: e.target.value})}
-                      placeholder="Your profession or job title"
-                      required
-                    />
+                    <div className="relative">
+                      <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        id="occupation"
+                        className="pl-10"
+                        value={formData.occupation}
+                        onChange={(e) => setFormData({...formData, occupation: e.target.value})}
+                        placeholder="e.g., Software Engineer"
+                        required
+                      />
+                    </div>
                   </div>
 
                   <div>
                     <Label htmlFor="source_of_funds">Source of Funds</Label>
-                    <Input
-                      id="source_of_funds"
-                      value={formData.source_of_funds}
-                      onChange={(e) => setFormData({...formData, source_of_funds: e.target.value})}
-                      placeholder="e.g., Salary, Business, Investment"
-                      required
-                    />
+                    <Select value={formData.source_of_funds} onValueChange={(value) => setFormData({...formData, source_of_funds: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select source of funds" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="salary">Salary</SelectItem>
+                        <SelectItem value="business">Business</SelectItem>
+                        <SelectItem value="investment">Investment</SelectItem>
+                        <SelectItem value="inheritance">Inheritance</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div>
                     <Label htmlFor="monthly_income_range">Monthly Income Range</Label>
-                    <select
-                      id="monthly_income_range"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      value={formData.monthly_income_range}
-                      onChange={(e) => setFormData({...formData, monthly_income_range: e.target.value})}
-                      required
-                    >
-                      <option value="">Select income range</option>
-                      <option value="Under ₦50,000">Under ₦50,000</option>
-                      <option value="₦50,000 - ₦100,000">₦50,000 - ₦100,000</option>
-                      <option value="₦100,000 - ₦250,000">₦100,000 - ₦250,000</option>
-                      <option value="₦250,000 - ₦500,000">₦250,000 - ₦500,000</option>
-                      <option value="₦500,000 - ₦1,000,000">₦500,000 - ₦1,000,000</option>
-                      <option value="Over ₦1,000,000">Over ₦1,000,000</option>
-                    </select>
+                    <Select value={formData.monthly_income_range} onValueChange={(value) => setFormData({...formData, monthly_income_range: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select income range" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0-50000">₦0 - ₦50,000</SelectItem>
+                        <SelectItem value="50000-100000">₦50,000 - ₦100,000</SelectItem>
+                        <SelectItem value="100000-500000">₦100,000 - ₦500,000</SelectItem>
+                        <SelectItem value="500000-1000000">₦500,000 - ₦1,000,000</SelectItem>
+                        <SelectItem value="1000000+">₦1,000,000+</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="flex gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setCurrentStep('bvn')}
-                      className="flex-1"
-                    >
-                      Back
-                    </Button>
-                    <Button
-                      type="submit"
+                    <Button type="button" variant="outline" onClick={handleBack} className="flex-1">Back</Button>
+                    <Button 
+                      type="submit" 
                       className="flex-1 bg-gradient-to-r from-purple-600 to-teal-600 hover:from-purple-700 hover:to-teal-700"
                       disabled={loading}
                     >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Submitting...
-                        </>
-                      ) : (
-                        'Submit Application'
-                      )}
+                      {loading ? 'Saving...' : 'Continue to Documents'}
                     </Button>
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Document Upload Step */}
+          {currentStep === 'documents' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Document Upload
+                </CardTitle>
+                <CardDescription>
+                  Upload required documents for verification
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {/* ID Card Upload */}
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    <div className="text-center">
+                      <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                      <Label htmlFor="id_card" className="cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700">Government ID Card</span>
+                        <p className="text-xs text-gray-500 mt-1">Passport, Driver's License, or National ID</p>
+                      </Label>
+                      <Input
+                        id="id_card"
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleDocumentUpload('id_card', file);
+                        }}
+                        disabled={uploading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Proof of Address Upload */}
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    <div className="text-center">
+                      <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                      <Label htmlFor="proof_of_address" className="cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700">Proof of Address</span>
+                        <p className="text-xs text-gray-500 mt-1">Utility bill, bank statement, or lease agreement</p>
+                      </Label>
+                      <Input
+                        id="proof_of_address"
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleDocumentUpload('proof_of_address', file);
+                        }}
+                        disabled={uploading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Proof of Income Upload (Optional) */}
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    <div className="text-center">
+                      <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                      <Label htmlFor="proof_of_income" className="cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700">Proof of Income (Optional)</span>
+                        <p className="text-xs text-gray-500 mt-1">Payslip, bank statement, or tax return</p>
+                      </Label>
+                      <Input
+                        id="proof_of_income"
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleDocumentUpload('proof_of_income', file);
+                        }}
+                        disabled={uploading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button type="button" variant="outline" onClick={handleBack} className="flex-1">Back</Button>
+                    <Button 
+                      onClick={() => hasRequiredDocs() ? setCurrentStep('review') : toast({ title: 'Documents Required', description: 'Please upload all required documents before continuing.', variant: 'destructive' })}
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-teal-600 hover:from-purple-700 hover:to-teal-700"
+                      disabled={uploading}
+                    >
+                      {uploading ? 'Uploading...' : 'Continue to Review'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Review Step */}
+          {currentStep === 'review' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5" />
+                  Review Application
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="font-medium mb-2">Personal Information</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="font-medium">Name:</span> {verificationData?.first_name} {verificationData?.last_name}</div>
+                      <div><span className="font-medium">Phone:</span> {formData.phone}</div>
+                      <div><span className="font-medium">Occupation:</span> {formData.occupation}</div>
+                      <div><span className="font-medium">Income Range:</span> {formData.monthly_income_range}</div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="font-medium mb-2">Documents Uploaded</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span>Government ID Card</span>
+                        {documents.id_card && <span className="text-xs text-gray-500">{documents.id_card.name}</span>}
+                        {docFeedback['id_card'] && <span className="text-xs text-red-600 ml-2">Admin: {docFeedback['id_card']}</span>}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span>Proof of Address</span>
+                        {documents.proof_of_address && <span className="text-xs text-gray-500">{documents.proof_of_address.name}</span>}
+                        {docFeedback['proof_of_address'] && <span className="text-xs text-red-600 ml-2">Admin: {docFeedback['proof_of_address']}</span>}
+                      </div>
+                      {documents.proof_of_income && (
+                        <div className="flex items-center space-x-2">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span>Proof of Income</span>
+                          <span className="text-xs text-gray-500">{documents.proof_of_income.name}</span>
+                          {docFeedback['proof_of_income'] && <span className="text-xs text-red-600 ml-2">Admin: {docFeedback['proof_of_income']}</span>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button type="button" variant="outline" onClick={handleBack} className="flex-1">Back</Button>
+                    <Button 
+                      onClick={handleFinalSubmit}
+                      className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                      disabled={loading}
+                    >
+                      {loading ? 'Submitting...' : 'Submit Application'}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}

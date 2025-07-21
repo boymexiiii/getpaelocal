@@ -48,6 +48,12 @@ interface KycApplication {
   user_id: string;
   occupation: string;
   kyc_level: number;
+  bvn?: string;
+  bvn_verified?: boolean;
+  reviewer_notes?: string;
+  rejection_reason?: string;
+  source_of_funds?: string;
+  monthly_income_range?: string;
   profiles: {
     first_name: string;
     last_name: string;
@@ -90,7 +96,7 @@ export const useAdminData = () => {
       // Fetch profiles with pagination
       const { data: profilesData } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, is_verified, kyc_level, role, created_at, date_of_birth, phone, state, updated_at')
+        .select('id, first_name, last_name, is_verified, kyc_level, created_at, date_of_birth, phone, state, updated_at')
         .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -105,8 +111,7 @@ export const useAdminData = () => {
             first_name: profile?.first_name || 'Unknown',
             last_name: profile?.last_name || 'User',
             is_verified: profile?.is_verified || false,
-            kyc_level: profile?.kyc_level || 1,
-            role: profile?.role || 'user'
+            kyc_level: profile?.kyc_level || 1
           }
         };
       });
@@ -148,9 +153,12 @@ export const useAdminData = () => {
           user_id,
           occupation,
           kyc_level,
+          bvn,
           bvn_verified,
           reviewer_notes,
-          rejection_reason
+          rejection_reason,
+          source_of_funds,
+          monthly_income_range
         `)
         .order('submitted_at', { ascending: false });
 

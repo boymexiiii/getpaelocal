@@ -68,6 +68,46 @@ const Invest = () => {
     }
   };
 
+  const [cryptoPrices, setCryptoPrices] = useState({
+    BTC: { price: 45000, change: 0 },
+    ETH: { price: 3000, change: 0 },
+    USDT: { price: 1, change: 0 }
+  });
+
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const response = await fetch(
+          'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether&vs_currencies=usd&include_24hr_change=true'
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          setCryptoPrices({
+            BTC: { 
+              price: data.bitcoin?.usd || 45000, 
+              change: data.bitcoin?.usd_24h_change || 0 
+            },
+            ETH: { 
+              price: data.ethereum?.usd || 3000, 
+              change: data.ethereum?.usd_24h_change || 0 
+            },
+            USDT: { 
+              price: data.tether?.usd || 1, 
+              change: data.tether?.usd_24h_change || 0 
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching crypto prices:', error);
+      }
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
+
   const cryptoAssets = [
     {
       id: 'BTC',
@@ -76,8 +116,8 @@ const Invest = () => {
       description: 'The world\'s first and largest cryptocurrency',
       icon: <Bitcoin className="w-6 h-6" />,
       color: 'from-orange-500 to-yellow-500',
-      price: '₦45,000,000',
-      change: '+2.4%'
+      price: `₦${(cryptoPrices.BTC.price * 1000).toLocaleString()}`,
+      change: `${cryptoPrices.BTC.change >= 0 ? '+' : ''}${cryptoPrices.BTC.change.toFixed(2)}%`
     },
     {
       id: 'ETH',
@@ -86,8 +126,8 @@ const Invest = () => {
       description: 'Smart contracts and decentralized applications',
       icon: <Coins className="w-6 h-6" />,
       color: 'from-blue-500 to-purple-500',
-      price: '₦3,000,000',
-      change: '+5.1%'
+      price: `₦${(cryptoPrices.ETH.price * 1000).toLocaleString()}`,
+      change: `${cryptoPrices.ETH.change >= 0 ? '+' : ''}${cryptoPrices.ETH.change.toFixed(2)}%`
     },
     {
       id: 'USDT',
@@ -96,8 +136,8 @@ const Invest = () => {
       description: 'USD-pegged stablecoin for stability',
       icon: <Banknote className="w-6 h-6" />,
       color: 'from-green-500 to-teal-500',
-      price: '₦1,000',
-      change: '0.0%'
+      price: `₦${(cryptoPrices.USDT.price * 1000).toLocaleString()}`,
+      change: `${cryptoPrices.USDT.change >= 0 ? '+' : ''}${cryptoPrices.USDT.change.toFixed(2)}%`
     }
   ];
 

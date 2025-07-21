@@ -12,11 +12,32 @@ interface Investment {
   created_at: string;
 }
 
-// Mock crypto prices - in production, you'd fetch from a real API
-const mockPrices = {
-  BTC: 45000,
-  ETH: 3000,
-  USDT: 1
+// Real crypto prices from CoinGecko API
+const fetchCryptoPrices = async () => {
+  try {
+    const response = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether&vs_currencies=usd&include_24hr_change=true'
+    );
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch crypto prices');
+    }
+    
+    const data = await response.json();
+    return {
+      BTC: data.bitcoin?.usd || 45000,
+      ETH: data.ethereum?.usd || 3000,
+      USDT: data.tether?.usd || 1
+    };
+  } catch (error) {
+    console.error('Error fetching crypto prices:', error);
+    // Fallback to mock prices
+    return {
+      BTC: 45000,
+      ETH: 3000,
+      USDT: 1
+    };
+  }
 };
 
 export const useInvestments = () => {
@@ -50,7 +71,8 @@ export const useInvestments = () => {
   const buyAsset = async (assetType: string, amountInNGN: number) => {
     if (!user) return { error: 'User not authenticated' };
 
-    const currentPrice = mockPrices[assetType as keyof typeof mockPrices];
+    const currentPrices = await fetchCryptoPrices();
+    const currentPrice = currentPrices[assetType as keyof typeof currentPrices];
     const assetAmount = amountInNGN / currentPrice;
 
     const { error } = await supabase

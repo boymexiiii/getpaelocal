@@ -1,5 +1,9 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+import { Landmark, Bell } from 'lucide-react';
 
 const adminNav = [
   { label: 'Dashboard', path: '/admin' },
@@ -11,10 +15,28 @@ const adminNav = [
   { label: 'Notifications', path: '/admin/notifications' },
   { label: 'Settings', path: '/admin/settings' },
   { label: 'Audit Logs', path: '/admin/audit-logs' },
+  {
+    to: '/admin/kyc-analytics',
+    icon: Landmark,
+    label: 'KYC Analytics',
+  },
+  {
+    to: '/admin/system-alerts',
+    icon: Bell,
+    label: 'System Alerts',
+  },
 ];
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen flex bg-gray-100">
       {/* Sidebar */}
@@ -35,9 +57,15 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Topbar */}
-        <header className="h-16 bg-white shadow flex items-center justify-end px-6 border-b">
+        <header className="h-16 bg-white shadow flex items-center justify-end px-6 border-b gap-4">
           <span className="font-medium">Admin</span>
-          {/* Add profile dropdown, logout, etc. here */}
+          <button
+            className="flex items-center gap-2 px-3 py-1 rounded text-red-600 hover:bg-red-100 hover:text-red-800 transition"
+            onClick={handleLogout}
+          >
+            <LogOut className="w-5 h-5" />
+            Logout
+          </button>
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>

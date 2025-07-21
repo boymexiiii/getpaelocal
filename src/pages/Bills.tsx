@@ -40,10 +40,10 @@ const Bills = () => {
       return;
     }
 
-    if (parseFloat(amount) < 50) {
+    if (parseFloat(amount) < 10) {
       toast({
         title: "Invalid Amount",
-        description: "Minimum bill payment amount is ₦50",
+        description: "Minimum bill payment amount is ₦10",
         variant: "destructive"
       });
       return;
@@ -278,9 +278,9 @@ const Bills = () => {
                     placeholder="Enter amount"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    min="50"
+                    min="10"
                   />
-                  <p className="text-sm text-gray-500 mt-1">Minimum: ₦50</p>
+                  <p className="text-sm text-gray-500 mt-1">Minimum: ₦10</p>
                 </div>
 
                 <Button

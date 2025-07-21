@@ -1,4 +1,3 @@
-
 -- Safely enable RLS and create policies only if they don't exist
 
 -- Enable RLS on tables that don't have it yet
@@ -56,8 +55,11 @@ BEGIN
         FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
     END IF;
 
-    -- Add transactions recipient_id foreign key if it doesn't exist
-    IF NOT EXISTS (
+    -- Add transactions recipient_id foreign key if it doesn't exist AND the column exists
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'transactions' AND column_name = 'recipient_id'
+    ) AND NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints 
         WHERE constraint_name = 'transactions_recipient_id_fkey' AND table_name = 'transactions'
     ) THEN
@@ -175,4 +177,4 @@ BEGIN
         AFTER INSERT ON auth.users
         FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_limits();
     END IF;
-END $$;
+END $$; 

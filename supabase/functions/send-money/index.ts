@@ -22,9 +22,9 @@ serve(async (req) => {
     const { recipientIdentifier, amount, description, userId } = await req.json()
 
     // Enforce minimum transfer amount
-    if (typeof amount !== 'number' || amount < 100) {
+    if (typeof amount !== 'number' || amount < 10) {
       return new Response(
-        JSON.stringify({ error: 'Minimum transfer amount is ₦100' }),
+        JSON.stringify({ error: 'Minimum transfer amount is ₦10' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }

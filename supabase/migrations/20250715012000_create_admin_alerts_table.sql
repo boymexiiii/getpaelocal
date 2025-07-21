@@ -9,5 +9,13 @@ CREATE TABLE IF NOT EXISTS admin_alerts (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Index for fast lookup by type and status
-CREATE INDEX IF NOT EXISTS idx_admin_alerts_type_status ON admin_alerts(alert_type, status); 
+-- Index for fast lookup by type and status (only if table exists and columns exist)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'admin_alerts') 
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'admin_alerts' AND column_name = 'alert_type')
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'admin_alerts' AND column_name = 'status')
+       AND NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_admin_alerts_type_status') THEN
+        CREATE INDEX idx_admin_alerts_type_status ON admin_alerts(alert_type, status);
+    END IF;
+END $$; 
