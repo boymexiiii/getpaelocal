@@ -33,7 +33,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const KYC = () => {
   const { user } = useAuth();
-  const { application, loading, createApplication, submitApplication } = useKYC();
+  const { application, loading, createApplication, submitApplication, updateApplication } = useKYC();
   const { verifyBVN, loading: bvnLoading, verificationData, isVerified } = useBVNVerification();
   const { limits } = useTransactionLimits();
   const { logError, logUserAction } = useSentry();
@@ -87,10 +87,9 @@ const KYC = () => {
   const handleBVNVerification = async (bvn: string) => {
     try {
       logUserAction('kyc_bvn_verification_started', { bvn: bvn.substring(0, 4) + '****' });
-      
       const result = await verifyBVN(bvn);
-      
       if (result.success && result.verified) {
+        const data = result.data;
         setFormData(prev => ({
           ...prev,
           bvn: data.bvn || prev.bvn,
@@ -99,9 +98,16 @@ const KYC = () => {
           date_of_birth: data.date_of_birth || prev.date_of_birth,
           phone: data.phone || prev.phone,
         }));
+        // Persist BVN verification to backend
+        await updateApplication({
+          bvn_verified: true,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          date_of_birth: data.date_of_birth,
+          phone: data.phone,
+        });
         setCurrentStep('details');
         logUserAction('kyc_bvn_verification_success');
-        
         toast({
           title: "BVN Verified Successfully",
           description: "Please continue with your personal details",

@@ -278,6 +278,40 @@ export const useKYC = () => {
     return application?.status === 'approved' && application.kyc_level < 3;
   };
 
+  // Add this function to update the KYC application
+  const updateApplication = async (updateData: Partial<{
+    bvn_verified: boolean;
+    first_name: string;
+    last_name: string;
+    date_of_birth: string;
+    phone: string;
+  }>) => {
+    if (!user || !application) return { error: 'No application to update' };
+    try {
+      const { data, error } = await supabase
+        .from('kyc_applications')
+        .update(updateData)
+        .eq('id', application.id)
+        .select()
+        .single();
+      if (error) {
+        console.error('Error updating KYC application:', error);
+        return { error: error.message };
+      }
+      setApplication(data as KYCApplication);
+      await logAction({
+        action: 'KYC_APPLICATION_UPDATED',
+        table_name: 'kyc_applications',
+        record_id: data.id,
+        new_data: data
+      });
+      return { data };
+    } catch (error) {
+      console.error('Unexpected error updating KYC application:', error);
+      return { error: 'Unexpected error updating application' };
+    }
+  };
+
   return {
     application,
     documents,
@@ -288,6 +322,7 @@ export const useKYC = () => {
     getKYCStatus,
     getKYCLevel,
     canUpgrade,
+    updateApplication, // Export the new function
     refetch: fetchKYCData
   };
 };
