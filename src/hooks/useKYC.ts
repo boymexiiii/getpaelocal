@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAuditLog } from '@/hooks/useAuditLog';
+import { useFileUpload } from './useFileUpload';
 
 interface KYCApplication {
   id: string;
@@ -38,6 +39,7 @@ export const useKYC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { logAction } = useAuditLog();
+  const { uploadFile } = useFileUpload();
   const [application, setApplication] = useState<KYCApplication | null>(null);
   const [documents, setDocuments] = useState<KYCDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -210,8 +212,18 @@ export const useKYC = () => {
     }
 
     try {
-      // For now, simulate document upload (in real app, upload to Supabase Storage)
-      const documentUrl = `https://example.com/documents/${file.name}`;
+      // Upload file to Supabase Storage
+      const uploadResult = await uploadFile(file, {
+        bucket: 'kyc-documents',
+        folder: documentType,
+        allowedTypes,
+        maxSize
+      });
+      if (!uploadResult) {
+        return { error: 'Failed to upload file to storage' };
+      }
+      const documentUrl = uploadResult.url;
+      const filePath = uploadResult.path;
 
       const { data, error } = await supabase
         .from('kyc_documents')
@@ -222,7 +234,8 @@ export const useKYC = () => {
           file_name: file.name,
           file_size: file.size,
           mime_type: file.type,
-          status: 'pending'
+          status: 'pending',
+          storage_path: filePath
         })
         .select()
         .single();

@@ -11,11 +11,13 @@ interface VirtualCard {
   expiry_month: string;
   expiry_year: string;
   cardholder_name: string;
-  balance: number;
-  currency: string;
-  status: string; // Changed from union type to string to match database
   reloadly_card_id: string;
+  currency: string;
+  status: string;
   created_at: string;
+  updated_at: string;
+  spending_limit?: number;
+  balance: number; // Added to match usage in Cards.tsx
 }
 
 interface CreateCardParams {
@@ -66,7 +68,22 @@ export const useVirtualCards = () => {
         });
         setCards([]);
       } else {
-        setCards(data || []);
+        setCards((data || []).map((card: any) => ({
+          id: card.id,
+          user_id: card.user_id,
+          card_number: card.card_number ?? '',
+          cvv: card.cvv ?? '',
+          expiry_month: card.expiry_month ?? '',
+          expiry_year: card.expiry_year ?? '',
+          cardholder_name: card.cardholder_name ?? '',
+          reloadly_card_id: card.reloadly_card_id ?? '',
+          currency: card.currency ?? 'NGN',
+          status: card.status ?? 'active',
+          created_at: card.created_at ?? '',
+          updated_at: card.updated_at ?? '',
+          spending_limit: card.spending_limit ?? undefined,
+          balance: card.balance ?? 0,
+        })));
       }
     } catch (error) {
       console.error('Unexpected error fetching cards:', error);
@@ -108,7 +125,22 @@ export const useVirtualCards = () => {
         description: "Virtual card created successfully!",
       });
 
-      return { success: true, card: cardData.data };
+      return { success: true, card: {
+        id: cardData.data?.id ?? '',
+        user_id: cardData.data?.user_id ?? '',
+        card_number: cardData.data?.card_number ?? '',
+        cvv: cardData.data?.cvv ?? '',
+        expiry_month: cardData.data?.expiry_month ?? '',
+        expiry_year: cardData.data?.expiry_year ?? '',
+        cardholder_name: cardData.data?.cardholder_name ?? '',
+        reloadly_card_id: cardData.data?.reloadly_card_id ?? '',
+        currency: cardData.data?.currency ?? 'NGN',
+        status: cardData.data?.status ?? 'active',
+        created_at: cardData.data?.created_at ?? '',
+        updated_at: cardData.data?.updated_at ?? '',
+        spending_limit: cardData.data?.spending_limit ?? undefined,
+        balance: 0, // Initialize balance for newly created card
+      }};
     } catch (error) {
       console.error('Unexpected error:', error);
       return { success: false, error: 'An unexpected error occurred' };

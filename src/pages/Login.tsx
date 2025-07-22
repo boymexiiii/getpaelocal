@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Fingerprint, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { startAuthentication } from '@simplewebauthn/browser';
+import { startRegistration } from '@simplewebauthn/browser';
+import { useToast } from '@/hooks/use-toast';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,6 +18,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -49,8 +53,76 @@ const Login = () => {
     }
   };
 
-  const handleBiometricLogin = () => {
-    console.log("Biometric login not implemented yet");
+  const handleBiometricLogin = async () => {
+    try {
+      if (!email) {
+        toast({ title: 'Email required', description: 'Please enter your email to use biometric login', variant: 'destructive' });
+        return;
+      }
+      // 1. Get userId (for demo, use email as userId; in production, use real userId)
+      const userId = email;
+      // 2. Fetch authentication options from backend
+      const optionsRes = await fetch('/functions/v1/webauthn-authentication-options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!optionsRes.ok) throw new Error('Failed to get authentication options');
+      const options = await optionsRes.json();
+      // 3. Start authentication with browser
+      const credential = await startAuthentication(options);
+      // 4. Send response to backend for verification
+      const verifyRes = await fetch('/functions/v1/webauthn-verify-authentication', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, credential, expectedChallenge: options.challenge }),
+      });
+      const verifyData = await verifyRes.json();
+      if (verifyData.success) {
+        toast({ title: 'Biometric Login Successful', description: 'You are now logged in!', variant: 'default' });
+        // TODO: Set session/cookie and redirect to dashboard
+        navigate('/dashboard');
+      } else {
+        toast({ title: 'Biometric Login Failed', description: verifyData.error || 'Verification failed', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Biometric Login Error', description: err.message || 'An error occurred', variant: 'destructive' });
+    }
+  };
+
+  const handleBiometricRegister = async () => {
+    try {
+      if (!email) {
+        toast({ title: 'Email required', description: 'Please enter your email to register biometric', variant: 'destructive' });
+        return;
+      }
+      // 1. Get userId (for demo, use email as userId; in production, use real userId)
+      const userId = email;
+      // 2. Fetch registration options from backend
+      const optionsRes = await fetch('/functions/v1/webauthn-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, username: email, displayName: email }),
+      });
+      if (!optionsRes.ok) throw new Error('Failed to get registration options');
+      const options = await optionsRes.json();
+      // 3. Start registration with browser
+      const credential = await startRegistration(options);
+      // 4. Send response to backend for verification
+      const verifyRes = await fetch('/functions/v1/webauthn-verify-registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, credential, expectedChallenge: options.challenge }),
+      });
+      const verifyData = await verifyRes.json();
+      if (verifyData.success) {
+        toast({ title: 'Biometric Registered', description: 'You can now use biometric login!', variant: 'default' });
+      } else {
+        toast({ title: 'Biometric Registration Failed', description: verifyData.error || 'Verification failed', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Biometric Registration Error', description: err.message || 'An error occurred', variant: 'destructive' });
+    }
   };
 
   return (
@@ -164,6 +236,14 @@ const Login = () => {
             >
               <Fingerprint className="h-4 w-4 mr-2" />
               Biometric Login
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleBiometricRegister}
+              className="w-full border-purple-200 text-purple-600 hover:bg-purple-50 mt-2"
+            >
+              <Fingerprint className="h-4 w-4 mr-2" />
+              Register Biometric
             </Button>
 
             <div className="text-center text-sm text-gray-600">

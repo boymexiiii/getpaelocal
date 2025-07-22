@@ -8,6 +8,8 @@ import { useNavigate } from 'react-router-dom';
 import { useRealTimeNotifications } from '@/hooks/useRealTimeNotifications';
 import { formatDistanceToNow } from 'date-fns';
 
+const isDev = import.meta.env.MODE !== 'production';
+
 const Notifications = () => {
   const navigate = useNavigate();
   const {
@@ -69,10 +71,12 @@ const Notifications = () => {
                 <Check className="w-4 h-4 mr-2" />
                 Mark All Read
               </Button>
-              <Button variant="ghost" onClick={testNotification}>
-                <Bell className="w-4 h-4 mr-2" />
-                Test
-              </Button>
+              {isDev && (
+                <Button variant="ghost" onClick={testNotification}>
+                  <Bell className="w-4 h-4 mr-2" />
+                  Test
+                </Button>
+              )}
             </div>
           </div>
         </div>

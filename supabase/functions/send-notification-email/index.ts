@@ -3,6 +3,14 @@ import { Resend } from 'npm:resend@4.0.0'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { TransactionEmail } from './_templates/transaction-email.tsx'
 import { OTPEmail } from './_templates/otp-email.tsx'
+import { WithdrawalEmail } from './_templates/withdrawal-email.tsx';
+import { PaymentSentEmail } from './_templates/payment-sent-email.tsx';
+import { PaymentReceivedEmail } from './_templates/payment-received-email.tsx';
+import { BillPaymentEmail } from './_templates/bill-payment-email.tsx';
+import { PaymentFailedEmail } from './_templates/payment-failed-email.tsx';
+import { WelcomeEmail } from './_templates/welcome-email.tsx';
+import { AccountChangedEmail } from './_templates/account-changed-email.tsx';
+import { AccountClosureEmail } from './_templates/account-closure-email.tsx';
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY') as string)
 
@@ -12,7 +20,19 @@ const corsHeaders = {
 }
 
 interface EmailRequest {
-  type: 'transaction' | 'otp' | 'kyc_update' | 'security_alert';
+  type:
+    | 'transaction'
+    | 'otp'
+    | 'kyc_update'
+    | 'security_alert'
+    | 'withdrawal'
+    | 'payment_sent'
+    | 'payment_received'
+    | 'bill_payment'
+    | 'payment_failed'
+    | 'welcome'
+    | 'account_changed'
+    | 'account_closure';
   to: string;
   data: any;
 }
@@ -43,6 +63,54 @@ Deno.serve(async (req) => {
           })
         );
         subject = `Transaction ${data.status}: ${data.currency}${data.amount.toLocaleString()}`;
+        break;
+      case 'withdrawal':
+        html = await renderAsync(
+          React.createElement(WithdrawalEmail, data)
+        );
+        subject = `Withdrawal ${data.status}: ${data.currency}${data.amount.toLocaleString()}`;
+        break;
+      case 'payment_sent':
+        html = await renderAsync(
+          React.createElement(PaymentSentEmail, data)
+        );
+        subject = `Payment Sent ${data.status}: ${data.currency}${data.amount.toLocaleString()}`;
+        break;
+      case 'payment_received':
+        html = await renderAsync(
+          React.createElement(PaymentReceivedEmail, data)
+        );
+        subject = `Payment Received: ${data.currency}${data.amount.toLocaleString()}`;
+        break;
+      case 'bill_payment':
+        html = await renderAsync(
+          React.createElement(BillPaymentEmail, data)
+        );
+        subject = `Bill Payment ${data.status}: ${data.currency}${data.amount.toLocaleString()}`;
+        break;
+      case 'payment_failed':
+        html = await renderAsync(
+          React.createElement(PaymentFailedEmail, data)
+        );
+        subject = `Transaction Failed: ${data.transactionType}`;
+        break;
+      case 'welcome':
+        html = await renderAsync(
+          React.createElement(WelcomeEmail, data)
+        );
+        subject = `Welcome to Pae!`;
+        break;
+      case 'account_changed':
+        html = await renderAsync(
+          React.createElement(AccountChangedEmail, data)
+        );
+        subject = `Account Change Notification`;
+        break;
+      case 'account_closure':
+        html = await renderAsync(
+          React.createElement(AccountClosureEmail, data)
+        );
+        subject = `Account Deactivation`;
         break;
 
       case 'otp':

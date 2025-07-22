@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Use the service role key for admin operations
-const supabaseUrl = 'https://rxnhnvshktykxhcjbgzm.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4bmhudnNoa3R5a3hoY2piZ3ptIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNzQ5NzI5NywiZXhwIjoyMDUzMDczMjk3fQ.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8';
+// Use environment variables for Supabase credentials (set in .env or deployment environment)
+const supabaseUrl = process.env.SUPABASE_URL || 'https://rxnhnvshktykxhcjbgzm.supabase.co';
+const supabaseKey = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4bmhudnNodGt5a3hrY2piZ3ptIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNzQ5NzI5NywiZXhwIjoyMDUzMDczMjk3fQ.Ej8Ej8Ej8Ej8Ej8Ej';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

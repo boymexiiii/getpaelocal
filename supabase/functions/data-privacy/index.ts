@@ -32,6 +32,8 @@ serve(async (req) => {
           wallets: wallets.data,
         }), { headers: { 'Content-Type': 'application/json' } });
       } else if (action === 'delete') {
+        // Fetch user profile before deletion
+        const { data: profile, error: profileError } = await supabase.from('profiles').select('first_name, email').eq('id', uid).single();
         // Delete all user data (hard delete for demo, soft delete recommended in production)
         const tables = ['transactions', 'kyc_applications', 'wallets', 'profiles'];
         for (const table of tables) {
@@ -48,6 +50,30 @@ serve(async (req) => {
           ip_address: null,
           user_agent: null,
         });
+
+        // Send account closure email notification
+        if (!profileError && profile && profile.email) {
+          try {
+            await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification-email`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              },
+              body: JSON.stringify({
+                type: 'account_closure',
+                to: profile.email,
+                data: {
+                  userName: profile.first_name || 'User',
+                  timestamp: new Date().toISOString()
+                }
+              })
+            });
+          } catch (emailError) {
+            console.error('Failed to send account closure email:', emailError);
+          }
+        }
+
         return new Response(JSON.stringify({ success: true }));
       } else {
         return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 });

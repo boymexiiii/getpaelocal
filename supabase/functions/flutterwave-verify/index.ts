@@ -78,6 +78,20 @@ serve(async (req) => {
       console.log('Transaction already completed for reference:', data.data.tx_ref)
     }
 
+    try {
+      await supabase.functions.invoke('send-real-time-notification', {
+        body: {
+          userId: userId,
+          type: 'wallet_funded',
+          title: 'Wallet Funded',
+          message: `Your wallet has been funded with ₦${amount.toLocaleString()}`,
+          channels: ['push', 'email']
+        }
+      });
+    } catch (notifError) {
+      console.error('Failed to send wallet funding notification:', notifError);
+    }
+
     return new Response(
       JSON.stringify({ success: true, amount }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

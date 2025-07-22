@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { CreditCard, Plus, Eye, EyeOff, Settings, Pause, ArrowLeft } from 'lucide-react';
 import Layout from '@/components/Layout';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useVirtualCards } from '@/hooks/useVirtualCards';
 import { useStroWallet } from '@/hooks/useStroWallet';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +12,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+
+const isDev = import.meta.env.MODE !== 'production';
 
 const Cards = () => {
   const navigate = useNavigate();
@@ -24,8 +27,11 @@ const Cards = () => {
     amount: '',
     email: ''
   });
+  const [lockLoading, setLockLoading] = useState<string | null>(null);
+  const [limitLoading, setLimitLoading] = useState<string | null>(null);
+  const [limitInputs, setLimitInputs] = useState<Record<string, string>>({});
   
-  const { cards, loading: cardsLoading, freezeCard, unfreezeCard } = useVirtualCards();
+  const { cards, loading: cardsLoading, freezeCard, unfreezeCard, refetch } = useVirtualCards();
   const { createVirtualCard, loading: stroLoading } = useStroWallet();
 
   const handleCreateCard = async () => {
@@ -38,17 +44,25 @@ const Cards = () => {
       return;
     }
 
-    const result = await createVirtualCard({
-      nameOnCard: cardData.nameOnCard,
-      amount: parseFloat(cardData.amount),
-      customerEmail: cardData.email || user?.email || '',
-      publicKey: 'VN21ZNMSYCOOJK56TA1KHCRE2ZTMWG',
-      mode: 'sandbox'
-    });
+    if (isDev) {
+      const result = await createVirtualCard({
+        nameOnCard: cardData.nameOnCard,
+        amount: parseFloat(cardData.amount),
+        customerEmail: cardData.email || user?.email || '',
+        publicKey: 'VN21ZNMSYCOOJK56TA1KHCRE2ZTMWG',
+        mode: 'sandbox'
+      });
 
-    if (result?.success) {
-      setIsCreateDialogOpen(false);
-      setCardData({ nameOnCard: '', amount: '', email: '' });
+      if (result?.success) {
+        setIsCreateDialogOpen(false);
+        setCardData({ nameOnCard: '', amount: '', email: '' });
+      }
+    } else {
+      toast({
+        title: "Sandbox Mode",
+        description: "This feature is only available in development mode.",
+        variant: "warning"
+      });
     }
   };
 
@@ -62,6 +76,61 @@ const Cards = () => {
         title: "Success",
         description: `Card ${currentStatus === 'frozen' ? 'unfrozen' : 'frozen'} successfully`,
       });
+    }
+  };
+
+  const handleLockToggle = async (card: any, locked: boolean) => {
+    if (!user) return;
+    setLockLoading(card.id);
+    try {
+      const res = await fetch('/functions/v1/virtual-card-controls', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          card_id: card.id,
+          user_id: user.id,
+          action: locked ? 'lock' : 'unlock'
+        })
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      toast({ title: locked ? 'Card locked' : 'Card unlocked' });
+      refetch();
+    } catch (e: any) {
+      toast({ title: e.message || 'Failed to update card', variant: 'destructive' });
+    } finally {
+      setLockLoading(null);
+    }
+  };
+
+  const handleLimitSave = async (card: any) => {
+    if (!user) return;
+    setLimitLoading(card.id);
+    try {
+      const limit = parseFloat(limitInputs[card.id]);
+      if (isNaN(limit) || limit <= 0) {
+        toast({ title: 'Enter a valid limit', variant: 'destructive' });
+        setLimitLoading(null);
+        return;
+      }
+      const res = await fetch('/functions/v1/virtual-card-controls', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          card_id: card.id,
+          user_id: user.id,
+          action: 'set_limit',
+          spending_limit: limit
+        })
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      toast({ title: 'Spending limit set' });
+      refetch();
+    } catch (e: any) {
+      toast({ title: e.message || 'Failed to set limit', variant: 'destructive' });
+    } finally {
+      setLimitLoading(null);
     }
   };
 
@@ -221,6 +290,34 @@ const Cards = () => {
                           </div>
                         </div>
                       </div>
+                    </div>
+                    <div className="flex items-center gap-4 mt-4">
+                      <span className="text-sm">Lock Card</span>
+                      <Switch
+                        checked={card.status === 'blocked'}
+                        onCheckedChange={checked => handleLockToggle(card, checked)}
+                        disabled={lockLoading === card.id}
+                        aria-label={card.status === 'blocked' ? 'Unlock card' : 'Lock card'}
+                      />
+                      {lockLoading === card.id && <span className="text-xs text-gray-500 ml-2">Updating...</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Label htmlFor={`limit-${card.id}`} className="text-sm">Spending Limit (₦)</Label>
+                      <Input
+                        id={`limit-${card.id}`}
+                        type="number"
+                        value={limitInputs[card.id] ?? (card.spending_limit ?? '')}
+                        onChange={e => setLimitInputs(inputs => ({ ...inputs, [card.id]: e.target.value }))}
+                        className="w-32"
+                        min="1"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleLimitSave(card)}
+                        disabled={limitLoading === card.id}
+                      >
+                        {limitLoading === card.id ? 'Saving...' : 'Set Limit'}
+                      </Button>
                     </div>
                     
                     <div className="flex gap-2">

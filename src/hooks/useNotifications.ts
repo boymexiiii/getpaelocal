@@ -218,6 +218,167 @@ export const useNotifications = () => {
     }
   };
 
+  // New notification email triggers
+  const sendWithdrawalEmail = async (data: TransactionNotificationData) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'withdrawal',
+          to: data.userEmail,
+          data
+        }
+      });
+      if (error) {
+        console.error('Failed to send withdrawal email:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Withdrawal email error:', error);
+      return false;
+    }
+  };
+
+  const sendPaymentSentEmail = async (data: TransactionNotificationData) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'payment_sent',
+          to: data.userEmail,
+          data
+        }
+      });
+      if (error) {
+        console.error('Failed to send payment sent email:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Payment sent email error:', error);
+      return false;
+    }
+  };
+
+  const sendPaymentReceivedEmail = async (data: TransactionNotificationData & { sender: string }) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'payment_received',
+          to: data.userEmail,
+          data
+        }
+      });
+      if (error) {
+        console.error('Failed to send payment received email:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Payment received email error:', error);
+      return false;
+    }
+  };
+
+  const sendBillPaymentEmail = async (data: TransactionNotificationData & { billType: string; billRef: string }) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'bill_payment',
+          to: data.userEmail,
+          data
+        }
+      });
+      if (error) {
+        console.error('Failed to send bill payment email:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Bill payment email error:', error);
+      return false;
+    }
+  };
+
+  const sendPaymentFailedEmail = async (data: TransactionNotificationData & { reason?: string }) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'payment_failed',
+          to: data.userEmail,
+          data
+        }
+      });
+      if (error) {
+        console.error('Failed to send payment failed email:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Payment failed email error:', error);
+      return false;
+    }
+  };
+
+  const sendWelcomeEmail = async (data: NotificationData) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'welcome',
+          to: data.userEmail,
+          data
+        }
+      });
+      if (error) {
+        console.error('Failed to send welcome email:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Welcome email error:', error);
+      return false;
+    }
+  };
+
+  const sendAccountChangedEmail = async (data: NotificationData & { changeType: string; timestamp: string }) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'account_changed',
+          to: data.userEmail,
+          data
+        }
+      });
+      if (error) {
+        console.error('Failed to send account changed email:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Account changed email error:', error);
+      return false;
+    }
+  };
+
+  const sendAccountClosureEmail = async (data: NotificationData & { timestamp: string }) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'account_closure',
+          to: data.userEmail,
+          data
+        }
+      });
+      if (error) {
+        console.error('Failed to send account closure email:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Account closure email error:', error);
+      return false;
+    }
+  };
+
   return {
     sendRealTimeNotification,
     sendTransactionEmail,
@@ -225,6 +386,14 @@ export const useNotifications = () => {
     sendOTPEmail,
     sendOTPSMS,
     sendKYCUpdateNotification,
-    sendSecurityAlert
+    sendSecurityAlert,
+    sendWithdrawalEmail,
+    sendPaymentSentEmail,
+    sendPaymentReceivedEmail,
+    sendBillPaymentEmail,
+    sendPaymentFailedEmail,
+    sendWelcomeEmail,
+    sendAccountChangedEmail,
+    sendAccountClosureEmail
   };
 };

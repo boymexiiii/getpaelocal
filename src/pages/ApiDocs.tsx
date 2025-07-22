@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+const isDev = import.meta.env.MODE !== 'production';
+
 const ApiDocs = () => {
   const navigate = useNavigate();
 
@@ -98,6 +100,9 @@ curl -X POST https://api.getpae.com/v1/transactions/send \\
   }'
 `
   };
+
+  // Use environment variable for API base URL
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.getpae.com';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-teal-50 p-4">
@@ -257,11 +262,11 @@ curl -X POST https://api.getpae.com/v1/transactions/send \\
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <h4 className="font-medium mb-2">Sandbox Environment</h4>
-                <p className="text-sm text-gray-600">Base URL: https://api-sandbox.getpae.com</p>
+                <p className="text-sm text-gray-600">Base URL: {API_BASE_URL}/v1</p>
               </div>
               <div>
                 <h4 className="font-medium mb-2">Production Environment</h4>
-                <p className="text-sm text-gray-600">Base URL: https://api.getpae.com</p>
+                <p className="text-sm text-gray-600">Base URL: {API_BASE_URL}/v1</p>
               </div>
             </div>
           </CardContent>

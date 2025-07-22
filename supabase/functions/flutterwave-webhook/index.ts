@@ -126,15 +126,51 @@ async function handleChargeCompleted(data: any, supabaseClient: any) {
       return
     }
 
-    // Debit wallet
-    const { error: debitError } = await supabaseClient
-      .from('wallets')
-      .update({ balance: wallet.balance - transaction.amount })
-      .eq('id', wallet.id)
+    if (
+      transaction.transaction_type === 'deposit' ||
+      transaction.transaction_type === 'wallet_funding'
+    ) {
+      // CREDIT wallet for funding
+      await supabaseClient
+        .from('wallets')
+        .update({ balance: wallet.balance + transaction.amount })
+        .eq('id', wallet.id)
 
-    if (debitError) {
-      console.error('Failed to debit wallet:', debitError)
-      return
+      // Fetch user email from profiles
+      const { data: profile, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('first_name, email')
+        .eq('id', transaction.user_id)
+        .single();
+      if (!profileError && profile && profile.email) {
+        // Send payment_received email notification
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            type: 'payment_received',
+            to: profile.email,
+            data: {
+              userName: profile.first_name || 'User',
+              amount: transaction.amount,
+              currency: '₦',
+              sender: 'Bank/Card',
+              transactionId: transaction.id,
+              timestamp: new Date().toISOString(),
+              status: 'completed'
+            }
+          })
+        });
+      }
+    } else {
+      // DEBIT wallet for outgoing payment
+      await supabaseClient
+        .from('wallets')
+        .update({ balance: wallet.balance - transaction.amount })
+        .eq('id', wallet.id)
     }
 
     console.log(`Successfully debited ₦${transaction.amount} from user ${transaction.user_id}`)
@@ -207,15 +243,21 @@ async function handleTransferCompleted(data: any, supabaseClient: any) {
       return
     }
 
-    // Debit wallet
-    const { error: debitError } = await supabaseClient
-      .from('wallets')
-      .update({ balance: wallet.balance - transaction.amount })
-      .eq('id', wallet.id)
-
-    if (debitError) {
-      console.error('Failed to debit wallet:', debitError)
-      return
+    if (
+      transaction.transaction_type === 'deposit' ||
+      transaction.transaction_type === 'wallet_funding'
+    ) {
+      // CREDIT wallet for funding
+      await supabaseClient
+        .from('wallets')
+        .update({ balance: wallet.balance + transaction.amount })
+        .eq('id', wallet.id)
+    } else {
+      // DEBIT wallet for outgoing payment
+      await supabaseClient
+        .from('wallets')
+        .update({ balance: wallet.balance - transaction.amount })
+        .eq('id', wallet.id)
     }
 
     console.log(`Successfully debited ₦${transaction.amount} from user ${transaction.user_id}`)
@@ -450,15 +492,21 @@ async function handleBillCompleted(data: any, supabaseClient: any) {
       return
     }
 
-    // Debit wallet
-    const { error: debitError } = await supabaseClient
-      .from('wallets')
-      .update({ balance: wallet.balance - transaction.amount })
-      .eq('id', wallet.id)
-
-    if (debitError) {
-      console.error('Failed to debit wallet:', debitError)
-      return
+    if (
+      transaction.transaction_type === 'deposit' ||
+      transaction.transaction_type === 'wallet_funding'
+    ) {
+      // CREDIT wallet for funding
+      await supabaseClient
+        .from('wallets')
+        .update({ balance: wallet.balance + transaction.amount })
+        .eq('id', wallet.id)
+    } else {
+      // DEBIT wallet for outgoing payment
+      await supabaseClient
+        .from('wallets')
+        .update({ balance: wallet.balance - transaction.amount })
+        .eq('id', wallet.id)
     }
 
     console.log(`Successfully debited ₦${transaction.amount} from user ${transaction.user_id}`)

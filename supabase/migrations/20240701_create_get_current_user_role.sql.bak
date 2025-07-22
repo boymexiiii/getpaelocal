@@ -1,0 +1,7 @@
+-- Create or replace the get_current_user_role function for admin role checks
+create or replace function get_current_user_role()
+returns text
+language sql
+as $$
+  select role from user_roles where user_id = auth.uid();
+$$; 

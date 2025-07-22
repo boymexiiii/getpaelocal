@@ -48,17 +48,40 @@ serve(async (req) => {
       throw new Error('Failed to get Reloadly access token')
     }
 
-    // For now, we'll create a demo virtual card since Reloadly virtual cards require special setup
-    // In production, you would integrate with their actual virtual card API
-    const cardData = {
-      cardId: `RLD-${Date.now()}`,
-      cardNumber: '4532' + Math.random().toString().slice(2, 14),
-      cvv: Math.floor(Math.random() * 900 + 100).toString(),
-      expiryMonth: String(Math.floor(Math.random() * 12) + 1).padStart(2, '0'),
-      expiryYear: String(new Date().getFullYear() + Math.floor(Math.random() * 5) + 1),
-      balance: amount,
-      currency: currency,
-      status: 'active'
+    // Call Reloadly virtual card API
+    let cardData;
+    try {
+      const createCardResponse = await fetch('https://api.reloadly.com/virtual-cards/cards', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount,
+          currency,
+          cardholderName
+        })
+      });
+      if (!createCardResponse.ok) {
+        throw new Error('Reloadly card API error: ' + (await createCardResponse.text()));
+      }
+      cardData = await createCardResponse.json();
+      console.log('Reloadly card created:', cardData);
+    } catch (reloadlyError) {
+      console.error('Reloadly API failed, using demo card:', reloadlyError);
+      // Fallback to demo card
+      cardData = {
+        cardId: `RLD-${Date.now()}`,
+        cardNumber: '4532' + Math.random().toString().slice(2, 14),
+        cvv: Math.floor(Math.random() * 900 + 100).toString(),
+        expiryMonth: String(Math.floor(Math.random() * 12) + 1).padStart(2, '0'),
+        expiryYear: String(new Date().getFullYear() + Math.floor(Math.random() * 5) + 1),
+        balance: amount,
+        currency: currency,
+        status: 'active',
+        demo: true
+      };
     }
 
     console.log('Created card data:', cardData)

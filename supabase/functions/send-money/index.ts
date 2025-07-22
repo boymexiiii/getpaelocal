@@ -7,6 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const MAX_TRANSFER_AMOUNT = 500000;
+const MAX_TRANSFERS_PER_MINUTE = 3;
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -25,6 +28,28 @@ serve(async (req) => {
     if (typeof amount !== 'number' || amount < 10) {
       return new Response(
         JSON.stringify({ error: 'Minimum transfer amount is ₦10' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    // Fraud check: block large transfers
+    if (amount > MAX_TRANSFER_AMOUNT) {
+      return new Response(
+        JSON.stringify({ error: 'Transfer amount exceeds allowed limit. Please contact support.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+    // Fraud check: block rapid transfers
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
+    const { count: recentTransfers } = await supabase
+      .from('transactions')
+      .select('id', { count: 'exact' })
+      .eq('user_id', userId)
+      .eq('transaction_type', 'send')
+      .gt('created_at', oneMinuteAgo);
+    if (recentTransfers && recentTransfers > MAX_TRANSFERS_PER_MINUTE) {
+      return new Response(
+        JSON.stringify({ error: 'Too many transfers in a short period. Please wait and try again.' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
@@ -142,6 +167,90 @@ serve(async (req) => {
         .from('wallets')
         .update({ balance: recipientWallet.balance + amount })
         .eq('id', recipientWallet.id)
+    }
+
+    // Notify sender and recipient (pseudo, replace with your notification logic)
+    try {
+      await supabase.functions.invoke('send-real-time-notification', {
+        body: {
+          userId: userId,
+          type: 'wallet_transfer',
+          title: 'Transfer Successful',
+          message: `You sent ₦${amount.toLocaleString()} to ${recipientIdentifier}`,
+          channels: ['push', 'email']
+        }
+      });
+      await supabase.functions.invoke('send-real-time-notification', {
+        body: {
+          userId: recipient.id,
+          type: 'wallet_transfer',
+          title: 'You Received Money',
+          message: `You received ₦${amount.toLocaleString()} from ${userId}`,
+          channels: ['push', 'email']
+        }
+      });
+
+      // Fetch sender and recipient profiles for email addresses
+      const { data: senderProfile } = await supabase
+        .from('profiles')
+        .select('first_name, email')
+        .eq('id', userId)
+        .single();
+      const { data: recipientProfile } = await supabase
+        .from('profiles')
+        .select('first_name, email')
+        .eq('id', recipient.id)
+        .single();
+
+      // Send payment_sent email to sender
+      if (senderProfile && senderProfile.email) {
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            type: 'payment_sent',
+            to: senderProfile.email,
+            data: {
+              userName: senderProfile.first_name || 'User',
+              amount,
+              currency: '₦',
+              recipient: recipientProfile?.first_name || recipientIdentifier,
+              transactionId: `PAE-${Date.now()}`,
+              timestamp: new Date().toISOString(),
+              status: 'completed'
+            }
+          })
+        });
+      }
+
+      // Send payment_received email to recipient
+      if (recipientProfile && recipientProfile.email) {
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            type: 'payment_received',
+            to: recipientProfile.email,
+            data: {
+              userName: recipientProfile.first_name || 'User',
+              amount,
+              currency: '₦',
+              sender: senderProfile?.first_name || 'Sender',
+              transactionId: `REC-${Date.now()}`,
+              timestamp: new Date().toISOString(),
+              status: 'completed'
+            }
+          })
+        });
+      }
+    } catch (notifError) {
+      console.error('Failed to send transfer notification:', notifError);
     }
 
     return new Response(

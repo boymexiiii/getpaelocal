@@ -147,6 +147,37 @@ serve(async (req) => {
       throw new Error('Failed to create transaction record')
     }
 
+    // Send withdrawal email notification
+    if (transaction) {
+      // Fetch user email from profiles
+      const { data: profile, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('first_name, email')
+        .eq('id', userId)
+        .single();
+      if (!profileError && profile && profile.email) {
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            type: 'withdrawal',
+            to: profile.email,
+            data: {
+              userName: profile.first_name || 'User',
+              amount: transaction.amount,
+              currency: '₦',
+              transactionId: transaction.id,
+              timestamp: new Date().toISOString(),
+              status: 'completed'
+            }
+          })
+        });
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

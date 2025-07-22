@@ -1,7 +1,7 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useUserRole } from '@/hooks/useUserRole';
 import { LogOut } from 'lucide-react';
 import { Landmark, Bell } from 'lucide-react';
 
@@ -30,7 +30,14 @@ const adminNav = [
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const { signOut } = useAuth();
+  const { isAdmin, loading } = useUserRole();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      navigate('/login');
+    }
+  }, [isAdmin, loading, navigate]);
 
   const handleLogout = async () => {
     await signOut();

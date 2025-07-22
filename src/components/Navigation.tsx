@@ -12,6 +12,20 @@ import {
   X,
   Gift,
   Plus,
+  Book,
+  FileText,
+  Globe,
+  MessageCircle,
+  Terminal,
+  Activity,
+  Briefcase,
+  Newspaper,
+  Lock,
+  HelpCircle,
+  Info,
+  Users as UsersIcon,
+  DollarSign,
+  TrendingUp,
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,6 +34,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import NotificationBell from '@/components/NotificationBell';
+import { useUser } from '@clerk/clerk-react';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 const Navigation = () => {
   const { user, signOut } = useAuth();
@@ -27,6 +43,9 @@ const Navigation = () => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const { flags, fetchFlags } = useFeatureFlags();
+  React.useEffect(() => { fetchFlags(); }, [fetchFlags]);
+  const netWorthEnabled = flags.find(f => f.feature_name === 'net_worth_dashboard' && f.enabled);
 
   // Check if screen is mobile size
   useEffect(() => {
@@ -107,12 +126,11 @@ const Navigation = () => {
       icon: Shield,
       label: "KYC Verification",
     },
-        // Only include Admin Panel if user is admin and isAdmin is true
-        ...(isAdmin === true ? [{
+    ...(isAdmin === true ? [{
       to: "/admin",
       icon: Shield,
       label: "Admin Panel",
-        }] : []),
+    }] : []),
     {
       to: "/nigeria-banking",
       icon: Landmark,
@@ -122,7 +140,12 @@ const Navigation = () => {
       to: "/settings",
       icon: Settings,
       label: "Settings",
-    }
+    },
+    {
+      to: "/savings",
+      icon: DollarSign,
+      label: "Savings",
+    },
   ];
 
   const handleSignOut = async () => {
@@ -269,9 +292,31 @@ const Navigation = () => {
         <div className="flex-1 px-4 py-6">
           <ul className="space-y-2">
             {navItems.map((item) => (
-              <li key={item.to}>
+              item.label === '---' ? (
+                <li key={item.to}><div className="border-b border-gray-200 my-2" /></li>
+              ) : (
+                <li key={item.to}>
+                  <NavLink
+                    to={item.to}
+                    onClick={isMobile ? closeMobileMenu : undefined}
+                    className={({ isActive }) =>
+                      `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
+                        isActive 
+                          ? 'bg-purple-50 text-purple-700 border-r-2 border-purple-600' 
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`
+                    }
+                  >
+                    {item.icon && <item.icon className="w-5 h-5" />}
+                    <span className="font-medium">{item.label}</span>
+                  </NavLink>
+                </li>
+              )
+            ))}
+            {netWorthEnabled && (
+              <li>
                 <NavLink
-                  to={item.to}
+                  to="/NetWorthDashboard"
                   onClick={isMobile ? closeMobileMenu : undefined}
                   className={({ isActive }) =>
                     `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
@@ -281,11 +326,11 @@ const Navigation = () => {
                     }`
                   }
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
+                  <Landmark className="w-5 h-5" />
+                  <span className="font-medium">Net Worth</span>
                 </NavLink>
               </li>
-            ))}
+            )}
           </ul>
         </div>
 

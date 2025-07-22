@@ -52,6 +52,9 @@ export const SecretKeyManager = () => {
   const [testResults, setTestResults] = useState<Record<string, 'success' | 'error' | null>>({});
   const { toast } = useToast();
 
+  // Only allow test endpoints and test key logic in development mode
+  const isDev = import.meta.env.MODE !== 'production';
+
   const handleSecretChange = (name: string, value: string) => {
     setSecrets(prev => ({ ...prev, [name]: value }));
     // Clear test result when secret changes
@@ -198,7 +201,7 @@ export const SecretKeyManager = () => {
                       )}
                     </Button>
                   </div>
-                  {secret.testEndpoint && (
+                  {isDev && secret.testEndpoint && (
                     <Button
                       onClick={() => testSecret(secret)}
                       disabled={testing[secret.name] || !secrets[secret.name]}

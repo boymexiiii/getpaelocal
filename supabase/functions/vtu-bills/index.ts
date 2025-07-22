@@ -142,6 +142,39 @@ serve(async (req) => {
       throw new Error('Failed to create transaction record');
     }
 
+    // Send bill payment email notification
+    if (transaction) {
+      // Fetch user email from profiles
+      const { data: profile, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('first_name, email')
+        .eq('id', userId)
+        .single();
+      if (!profileError && profile && profile.email) {
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            type: 'bill_payment',
+            to: profile.email,
+            data: {
+              userName: profile.first_name || 'User',
+              amount: transaction.amount,
+              currency: '₦',
+              billType,
+              billRef: serviceId,
+              transactionId: transaction.id,
+              timestamp: new Date().toISOString(),
+              status: 'completed'
+            }
+          })
+        });
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -166,6 +199,42 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('VTU bill payment error:', error)
+    // Send bill payment failed email notification
+    try {
+      const { billType, serviceId, amount, userId } = typeof error === 'object' && error && error.requestData ? error.requestData : {};
+      if (billType && serviceId && amount && userId) {
+        const { data: profile, error: profileError } = await supabaseClient
+          .from('profiles')
+          .select('first_name, email')
+          .eq('id', userId)
+          .single();
+        if (!profileError && profile && profile.email) {
+          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({
+              type: 'bill_payment',
+              to: profile.email,
+              data: {
+                userName: profile.first_name || 'User',
+                amount,
+                currency: '₦',
+                billType,
+                billRef: serviceId,
+                transactionId: null,
+                timestamp: new Date().toISOString(),
+                status: 'failed'
+              }
+            })
+          });
+        }
+      }
+    } catch (notifError) {
+      console.error('Failed to send bill payment failed email:', notifError);
+    }
     return new Response(
       JSON.stringify({ 
         success: false,

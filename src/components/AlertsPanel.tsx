@@ -9,6 +9,8 @@ import { Bell, CheckCircle, AlertTriangle, AlertCircle, XCircle, Filter } from "
 import { useMonitoringAlerts } from "@/hooks/useMonitoringAlerts";
 import { formatDistanceToNow } from "date-fns";
 
+const isDev = import.meta.env.MODE !== 'production';
+
 const AlertsPanel = () => {
   const { alerts, loading, unreadCount, resolveAlert, getAlertsBySeverity, getCriticalAlerts } = useMonitoringAlerts();
   const [selectedSeverity, setSelectedSeverity] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');

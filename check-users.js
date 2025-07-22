@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Use the same configuration as the frontend
-const supabaseUrl = 'https://rxnhnvshktykxhcjbgzm.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4bmhudnNoa3R5a3hoY2piZ3ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5MzMwMTksImV4cCI6MjA2NjUwOTAxOX0.RV42GZbBYIrf6Qyyn0Q7aRlmTu2exgQtDaQtO46RV_4';
+// Use environment variables for Supabase credentials (set in .env or deployment environment)
+const supabaseUrl = process.env.SUPABASE_URL || 'https://rxnhnvshktykxhcjbgzm.supabase.co';
+const supabaseKey = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4bmhudnNoa3R5a3hoY2piZ3ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5MzMwMTksImV4cCI6MjA2NjUwOTAxOX0.RV42GZbBYIrf6Qyyn0Q7aRlmTu2e';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

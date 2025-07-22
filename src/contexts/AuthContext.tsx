@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface AuthContextType {
   user: User | null;
@@ -38,6 +39,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const { toast } = useToast();
+  const { sendWelcomeEmail } = useNotifications();
 
   useEffect(() => {
     let mounted = true;
@@ -93,7 +95,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signUp = async (email: string, password: string, userData: any) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -109,6 +111,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           variant: "destructive"
         });
       } else {
+        // After signup, update the profiles table with extra fields
+        if (data?.user) {
+          await supabase.from('profiles').update({
+            full_name: `${userData.first_name} ${userData.last_name}`.trim()
+          }).eq('id', data.user.id);
+
+          // Send welcome email notification
+          await sendWelcomeEmail({
+            userId: data.user.id,
+            userName: userData.first_name || 'User',
+            userEmail: email
+          });
+        }
         toast({
           title: "Account Created!",
           description: "Please check your email to verify your account.",
@@ -124,10 +139,47 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error, data } = await supabase.auth.signInWithPassword({
         email,
         password
       });
+
+      async function getDeviceInfo() {
+        const imported: any = await import('ua-parser-js');
+        const UAParser: any = imported.default || imported;
+        const parser = new UAParser();
+        const ua = parser.getResult();
+        return {
+          device: ua.device.type || 'Desktop',
+          browser: ua.browser.name + ' ' + ua.browser.version,
+          os: ua.os.name + ' ' + ua.os.version,
+        };
+      }
+
+      if (!error && data?.user) {
+        // Device/Browser detection
+        const { device, browser, os } = await getDeviceInfo();
+        // Location detection
+        let location = '';
+        try {
+          const locRes = await fetch('https://ipapi.co/json/');
+          const locJson = await locRes.json();
+          location = locJson.city ? `${locJson.city}, ${locJson.country_name}` : locJson.country_name || '';
+        } catch {}
+        // Record session
+        await fetch('/functions/v1/user-sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: data.user.id,
+            device,
+            browser,
+            os,
+            location,
+            session_id: data.session?.access_token || '',
+          })
+        });
+      }
 
       if (error) {
         toast({

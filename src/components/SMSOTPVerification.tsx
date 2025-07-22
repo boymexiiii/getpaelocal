@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Smartphone, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SMSOTPVerificationProps {
   phoneNumber: string;
@@ -25,6 +26,7 @@ export const SMSOTPVerification = ({
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const { toast } = useToast();
+  const { user } = useAuth ? useAuth() : { user: null };
 
   const sendOTP = async () => {
     if (!phone || phone.length < 10) {
@@ -35,33 +37,44 @@ export const SMSOTPVerification = ({
       });
       return;
     }
-
     setLoading(true);
-    
     try {
-      // In a real app, you would call your SMS service here (e.g., Twilio)
-      // For demo purposes, we'll simulate sending OTP
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      toast({
-        title: "OTP Sent",
-        description: `Verification code sent to ${phone}`,
+      const res = await fetch('/functions/v1/otp/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user?.id || phone, // fallback to phone if no user
+          type: 'sms',
+          purpose: 'phone_verification',
+          userPhone: phone,
+          expiry_minutes: 10
+        })
       });
-      
-      setStep('otp');
-      setResendTimer(60);
-      
-      // Start countdown timer
-      const timer = setInterval(() => {
-        setResendTimer(prev => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
+      const json = await res.json();
+      if (json.success) {
+        toast({
+          title: "OTP Sent",
+          description: `Verification code sent to ${phone}`,
         });
-      }, 1000);
-      
+        setStep('otp');
+        setResendTimer(60);
+        // Start countdown timer
+        const timer = setInterval(() => {
+          setResendTimer(prev => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        toast({
+          title: "Failed to Send OTP",
+          description: json.error || "Please try again later",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       toast({
         title: "Failed to Send OTP",
@@ -82,16 +95,19 @@ export const SMSOTPVerification = ({
       });
       return;
     }
-
     setLoading(true);
-    
     try {
-      // In a real app, you would verify the OTP with your backend
-      // For demo purposes, we'll accept any 6-digit code
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simulate verification (accept "123456" as valid OTP for demo)
-      if (otp === "123456" || otp.length === 6) {
+      const res = await fetch('/functions/v1/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user?.id || phone,
+          code: otp,
+          purpose: 'phone_verification'
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
         toast({
           title: "Verification Successful",
           description: "Your phone number has been verified",
@@ -100,12 +116,11 @@ export const SMSOTPVerification = ({
       } else {
         toast({
           title: "Invalid OTP",
-          description: "The code you entered is incorrect",
+          description: json.error || "The code you entered is incorrect",
           variant: "destructive"
         });
         onVerificationComplete(false);
       }
-      
     } catch (error) {
       toast({
         title: "Verification Failed",
@@ -226,9 +241,7 @@ export const SMSOTPVerification = ({
             </div>
 
             <div className="text-center">
-              <p className="text-xs text-gray-500">
-                For demo: Use code "123456" to verify
-              </p>
+              {/* No demo code message, now uses real backend */}
             </div>
           </>
         )}

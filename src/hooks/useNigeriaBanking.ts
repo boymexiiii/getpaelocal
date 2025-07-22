@@ -67,15 +67,15 @@ export const useNigeriaBanking = () => {
 
     setLoading(true);
     try {
-      // Use the simulated Nigeria bank transfer function
-      const { data, error } = await supabase.functions.invoke('nigeria-bank-transfer', {
+      // Use the real enhanced bank transfer function with Flutterwave
+      const { data, error } = await supabase.functions.invoke('enhanced-bank-transfer', {
         body: {
           bank_code: transferData.bank_code,
           account_number: transferData.account_number,
-          account_name: transferData.account_name,
           amount: transferData.amount,
           narration: transferData.narration,
-          user_id: user.id
+          user_id: user.id,
+          provider: 'flutterwave'
         }
       });
 
@@ -89,14 +89,14 @@ export const useNigeriaBanking = () => {
         return { success: false, error: errorMessage };
       }
 
-      if (data.success) {
+      if (data && (data.success || data.status === 'success')) {
         toast({
           title: "Transfer Successful",
-          description: data.message,
+          description: data.message || 'Money sent successfully',
         });
-        return { success: true, reference: data.data.reference };
+        return { success: true, reference: data.data?.reference || data.reference };
       } else {
-        const errorMessage = data.error || 'Transfer failed. Please try again.';
+        const errorMessage = data?.error || 'Transfer failed. Please try again.';
         toast({
           title: "Transfer Failed",
           description: errorMessage,
@@ -105,7 +105,7 @@ export const useNigeriaBanking = () => {
         return { success: false, error: errorMessage };
       }
     } catch (error) {
-      console.error('Nigeria bank transfer error:', error);
+      console.error('Enhanced bank transfer error:', error);
       const errorMessage = 'Transfer failed. Please try again.';
       toast({
         title: "Transfer Failed",

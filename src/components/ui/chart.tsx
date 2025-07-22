@@ -32,6 +32,8 @@ function useChart() {
   return context
 }
 
+const isDev = import.meta.env.MODE !== 'production';
+
 const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {

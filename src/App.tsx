@@ -57,7 +57,6 @@ import BankTransfersAdminPage from '@/pages/admin/BankTransfers';
 import NotificationsAdminPage from '@/pages/admin/Notifications';
 import SettingsAdminPage from '@/pages/admin/Settings';
 import AuditLogsAdminPage from '@/pages/admin/AuditLogs';
-import TestBVN from '@/pages/TestBVN';
 import KYCStatusFloatingAlert from '@/components/KYCStatusFloatingAlert';
 
 // Initialize Sentry
@@ -124,7 +123,6 @@ function App() {
               <Route path="/admin/notifications" element={<ProtectedRoute><NotificationsAdminPage /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute><SettingsAdminPage /></ProtectedRoute>} />
               <Route path="/admin/audit-logs" element={<ProtectedRoute><AuditLogsAdminPage /></ProtectedRoute>} />
-              <Route path="/test-bvn" element={<ProtectedRoute><TestBVN /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

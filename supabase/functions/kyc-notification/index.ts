@@ -64,22 +64,28 @@ serve(async (req) => {
     let notificationTitle = '';
     let notificationMessage = '';
     let notificationType = '';
+    let kycStatus = '';
+    let kycReason = '';
 
     switch (action) {
       case 'approved':
         notificationTitle = 'KYC Verification Approved';
         notificationMessage = `Congratulations! Your KYC verification has been approved. You now have access to all Pae features.`;
         notificationType = 'kyc_approved';
+        kycStatus = 'approved';
         break;
       case 'rejected':
         notificationTitle = 'KYC Verification Rejected';
         notificationMessage = `Your KYC verification was rejected. Reason: ${admin_notes || 'Please review your submitted documents and try again.'}`;
         notificationType = 'kyc_rejected';
+        kycStatus = 'rejected';
+        kycReason = admin_notes || 'Please review your submitted documents and try again.';
         break;
       case 'under_review':
         notificationTitle = 'KYC Under Review';
         notificationMessage = 'Your KYC application is now under review. We will notify you once the review is complete.';
         notificationType = 'kyc_review';
+        kycStatus = 'under_review';
         break;
       default:
         return new Response(
@@ -92,6 +98,30 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         );
+    }
+
+    // Send KYC update email notification
+    if (kycData.profiles?.email) {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/send-notification-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            type: 'kyc_update',
+            to: kycData.profiles.email,
+            data: {
+              userName: kycData.profiles.first_name || 'User',
+              status: kycStatus,
+              reason: kycReason
+            }
+          })
+        });
+      } catch (emailError) {
+        console.error('Failed to send KYC update email:', emailError);
+      }
     }
 
     // Create notification record

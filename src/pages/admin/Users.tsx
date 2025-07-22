@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useEffect } from 'react';
 import { useAuditLog } from '@/hooks/useAuditLog';
-import { createClient } from '@supabase/supabase-js';
+// import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PAGE_SIZE = 10;
@@ -33,7 +33,9 @@ const UsersAdminPage: React.FC = () => {
   const [inviteRole, setInviteRole] = useState('admin');
   const [inviteLoading, setInviteLoading] = useState(false);
   const { logAction } = useAuditLog();
-  const supabaseAdmin = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
+  // Add state for adminUsers
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(true);
   // Add state to store userRoles
   const [userRoles, setUserRoles] = useState<{ [userId: string]: 'admin' | 'moderator' | 'user' }>({});
   const [notifyModalOpen, setNotifyModalOpen] = useState(false);
@@ -90,8 +92,25 @@ const UsersAdminPage: React.FC = () => {
     fetchRoles();
   }, [users]);
 
+  // Fetch users via Edge Function
+  useEffect(() => {
+    const fetchAdminUsers = async () => {
+      setAdminUsersLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('admin-users', {});
+        if (error) throw error;
+        setAdminUsers(data.users || []);
+      } catch (err) {
+        toast({ title: 'Error', description: 'Failed to fetch users', variant: 'destructive' });
+      } finally {
+        setAdminUsersLoading(false);
+      }
+    };
+    fetchAdminUsers();
+  }, []);
+
   // Filtering
-  const filteredUsers = users.filter((user) => {
+  const filteredUsers = adminUsers.filter((user) => {
     const matchesSearch =
       (user.profiles.first_name + ' ' + user.profiles.last_name).toLowerCase().includes(search.toLowerCase()) ||
       user.email.toLowerCase().includes(search.toLowerCase());
@@ -216,16 +235,15 @@ const UsersAdminPage: React.FC = () => {
         setInviteLoading(false);
         return;
       }
-      const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(inviteEmail);
-      if (error) throw error;
-      const userId = data?.user?.id;
-      if (userId) {
-        await supabase.from('user_roles').upsert({ user_id: userId, role: inviteRole as 'admin' | 'moderator' | 'user' });
-      }
+      // Call the admin-invite Edge Function
+      const { data, error } = await supabase.functions.invoke('admin-invite', {
+        body: { email: inviteEmail, role: inviteRole },
+      });
+      if (error || !data.success) throw error || new Error('Failed to invite admin');
       await logAction({
         action: 'ADMIN_INVITED',
         table_name: 'user_roles',
-        record_id: userId || inviteEmail,
+        record_id: data.user_id || inviteEmail,
         old_data: null,
         new_data: { role: inviteRole, email: inviteEmail }
       });
@@ -255,11 +273,11 @@ const UsersAdminPage: React.FC = () => {
     try {
       let userIds: string[] = [];
       if (notifyTarget === 'all') {
-        userIds = users.map(u => u.id);
+        userIds = adminUsers.map(u => u.id);
       } else if (notifyTarget === 'selected') {
         userIds = notifySelected;
       } else {
-        userIds = users.filter(u => userRoles[u.id] === notifyTarget).map(u => u.id);
+        userIds = adminUsers.filter(u => userRoles[u.id] === notifyTarget).map(u => u.id);
       }
       // Insert notifications for each user
       const inserts = userIds.map(user_id => ({
@@ -335,7 +353,7 @@ const UsersAdminPage: React.FC = () => {
             <option value="unverified">Unverified</option>
           </select>
         </div>
-        {loading ? (
+        {adminUsersLoading ? (
           <div>Loading users...</div>
         ) : (
           <div className="overflow-x-auto">
@@ -525,7 +543,7 @@ const UsersAdminPage: React.FC = () => {
               <div>
                 <label className="block font-medium mb-1">Select Users</label>
                 <div className="max-h-40 overflow-y-auto border rounded p-2">
-                  {users.map(u => (
+                  {adminUsers.map(u => (
                     <label key={u.id} className="flex items-center gap-2 mb-1">
                       <input type="checkbox" checked={notifySelected.includes(u.id)} onChange={e => {
                         setNotifySelected(s => e.target.checked ? [...s, u.id] : s.filter(id => id !== u.id));

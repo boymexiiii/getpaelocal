@@ -5,28 +5,58 @@ import { TrendingUp, DollarSign, CreditCard, Users, ArrowLeft } from 'lucide-rea
 import Layout from '@/components/Layout';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 const Analytics = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [totalsByCategory, setTotalsByCategory] = useState<Record<string, number>>({});
+  const [totalsByMonth, setTotalsByMonth] = useState<Record<string, number>>({});
+  const [transactions, setTransactions] = useState<any[]>([]);
 
-  const monthlyData = [
-    { month: 'Jan', income: 50000, expenses: 30000, savings: 20000 },
-    { month: 'Feb', income: 55000, expenses: 32000, savings: 23000 },
-    { month: 'Mar', income: 48000, expenses: 28000, savings: 20000 },
-    { month: 'Apr', income: 62000, expenses: 35000, savings: 27000 },
-    { month: 'May', income: 58000, expenses: 33000, savings: 25000 },
-    { month: 'Jun', income: 65000, expenses: 38000, savings: 27000 },
-  ];
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      if (!user) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error } = await supabase.functions.invoke('transaction-analytics', {
+          body: { user_id: user.id }
+        });
+        if (error || data?.error) {
+          setError(error?.message || data?.error || 'Failed to fetch analytics');
+          return;
+        }
+        setTotalsByCategory(data.totalsByCategory || {});
+        setTotalsByMonth(data.totalsByMonth || {});
+        setTransactions(data.transactions || []);
+      } catch (e: any) {
+        setError(e.message || 'Failed to fetch analytics');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, [user]);
 
-  const expenseData = [
-    { name: 'Food', value: 25000, color: '#8884d8' },
-    { name: 'Transport', value: 15000, color: '#82ca9d' },
-    { name: 'Bills', value: 20000, color: '#ffc658' },
-    { name: 'Entertainment', value: 10000, color: '#ff7300' },
-    { name: 'Others', value: 8000, color: '#00ff00' },
-  ];
+  // Map backend data to recharts format
+  const monthlyData = Object.entries(totalsByMonth).map(([month, total]) => ({
+    month,
+    expenses: total,
+  }));
+  const expenseData = Object.entries(totalsByCategory).map(([name, value], i) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    value,
+    color: COLORS[i % COLORS.length],
+  }));
 
-  const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00'];
+  const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#00bfff', '#ff1493', '#a0522d', '#8a2be2', '#228b22'];
 
   return (
     <Layout>
@@ -44,51 +74,25 @@ const Analytics = () => {
           <p className="text-gray-600">Track your spending patterns and financial health</p>
         </div>
 
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">Loading analytics...</div>
+        ) : error ? (
+          <div className="text-center py-12 text-red-600">{error}</div>
+        ) : (
+        <>
         <div className="grid gap-6 mb-8">
           <div className="grid md:grid-cols-4 gap-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">₦125,430</div>
-                <p className="text-xs text-muted-foreground">+12% from last month</p>
+                <div className="text-2xl font-bold">₦{Object.values(totalsByCategory).reduce((a, b) => a + b, 0).toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">Total of all categories</p>
               </CardContent>
             </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Monthly Income</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">₦65,000</div>
-                <p className="text-xs text-muted-foreground">+5% from last month</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Monthly Expenses</CardTitle>
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">₦38,000</div>
-                <p className="text-xs text-muted-foreground">-3% from last month</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Savings Rate</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">42%</div>
-                <p className="text-xs text-muted-foreground">+8% from last month</p>
-              </CardContent>
-            </Card>
+            {/* You can add more summary cards here if you want */}
           </div>
         </div>
 
@@ -104,10 +108,8 @@ const Analytics = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
-                    <Tooltip formatter={(value) => `₦${value.toLocaleString()}`} />
-                    <Bar dataKey="income" fill="#8884d8" name="Income" />
+                    <Tooltip formatter={(value) => `₦${Number(value).toLocaleString()}`} />
                     <Bar dataKey="expenses" fill="#82ca9d" name="Expenses" />
-                    <Bar dataKey="savings" fill="#ffc658" name="Savings" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -134,30 +136,15 @@ const Analytics = () => {
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => `₦${value.toLocaleString()}`} />
+                    <Tooltip formatter={(value) => `₦${Number(value).toLocaleString()}`} />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Savings Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => `₦${value.toLocaleString()}`} />
-                <Line type="monotone" dataKey="savings" stroke="#8884d8" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        </>
+        )}
       </div>
     </Layout>
   );

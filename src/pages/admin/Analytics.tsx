@@ -3,6 +3,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { useAdminData } from '@/hooks/useAdminData';
+import { Button } from '@/components/ui/button';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00'];
 
@@ -35,6 +36,16 @@ const AnalyticsAdminPage: React.FC = () => {
     typeMap.set(tx.transaction_type, (typeMap.get(tx.transaction_type) || 0) + tx.amount);
   });
   const typeData = Array.from(typeMap.entries()).map(([type, value], i) => ({ name: type, value, color: COLORS[i % COLORS.length] }));
+
+  const handleExportCSV = () => {
+    const csv = monthlyData.map(row => `${row.month},${row.income},${row.expenses},${row.volume}`).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'analytics.csv';
+    a.click();
+  };
 
   if (loading) {
     return (
@@ -119,6 +130,7 @@ const AnalyticsAdminPage: React.FC = () => {
           </Card>
         </div>
         <div className="text-xs text-gray-400 mt-4">Analytics powered by real admin data and Recharts.</div>
+        <Button onClick={handleExportCSV}>Export Analytics CSV</Button>
       </div>
     </AdminLayout>
   );

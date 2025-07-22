@@ -192,7 +192,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12 px-4">
         <div className="container mx-auto">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <img 
@@ -203,15 +203,6 @@ const Index = () => {
                 <span className="text-xl font-bold">Pae</span>
               </div>
               <p className="text-gray-400">The future of digital finance in Nigeria</p>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Product</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">Wallet</a></li>
-                <li><a href="#" className="hover:text-white">Investments</a></li>
-                <li><a href="#" className="hover:text-white">Cards</a></li>
-                <li><a href="#" className="hover:text-white">Payments</a></li>
-              </ul>
             </div>
             <div>
               <h3 className="font-semibold mb-4">Company</h3>
@@ -228,7 +219,6 @@ const Index = () => {
                 <li><a href="/terms" className="hover:text-white">Terms of Service</a></li>
                 <li><a href="/privacy" className="hover:text-white">Privacy Policy</a></li>
                 <li><a href="/compliance" className="hover:text-white">Compliance</a></li>
-                <li><a href="/security" className="hover:text-white">Security</a></li>
               </ul>
             </div>
             <div>
@@ -236,7 +226,6 @@ const Index = () => {
               <ul className="space-y-2 text-gray-400">
                 <li><a href="/help-center" className="hover:text-white">Help Center</a></li>
                 <li><a href="/contact" className="hover:text-white">Contact</a></li>
-                <li><a href="/api-docs" className="hover:text-white">API Docs</a></li>
                 <li><a href="/status" className="hover:text-white">Status</a></li>
               </ul>
             </div>
